@@ -113,7 +113,10 @@ class _NotificationInboxPageState extends State<NotificationInboxPage>
     }
 
     setState(() {
-      _notifications.insert(0, notification);
+      _notifications.add(notification);
+      _notifications.sort(
+        (a, b) => b.timestamp.compareTo(a.timestamp),
+      );
       _captureError = null;
     });
   } catch (error) {
@@ -124,7 +127,19 @@ class _NotificationInboxPageState extends State<NotificationInboxPage>
     }
   }
 }
+Map<String, List<CapturedNotification>> _groupNotificationsByApp() {
+  final groups = <String, List<CapturedNotification>>{};
 
+  for (final notification in _notifications) {
+    final appName = notification.appName.isEmpty
+        ? notification.packageName
+        : notification.appName;
+
+    groups.putIfAbsent(appName, () => []).add(notification);
+  }
+
+  return groups;
+}
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -154,19 +169,12 @@ class _NotificationInboxPageState extends State<NotificationInboxPage>
               ),
             ),
           Expanded(
-            child: _notifications.isEmpty
-                ? const _EmptyNotificationList()
-                : ListView.separated(
-                    padding: const EdgeInsets.only(bottom: 16),
-                    itemCount: _notifications.length,
-                    separatorBuilder: (_, _) => const Divider(height: 1),
-                    itemBuilder: (context, index) {
-                      return _NotificationListItem(
-                        notification: _notifications[index],
-                      );
-                    },
-                  ),
-          ),
+              child: _notifications.isEmpty
+                  ? const _EmptyNotificationList()
+                  : _GroupedNotificationList(
+                      groups: _groupNotificationsByApp(),
+                    ),
+            ),
         ],
       ),
     );
@@ -182,7 +190,10 @@ class _NotificationInboxPageState extends State<NotificationInboxPage>
     setState(() {
       _notifications
         ..clear()
-        ..addAll(savedNotifications);
+        ..addAll(savedNotifications)
+        ..sort(
+          (a, b) => b.timestamp.compareTo(a.timestamp),
+        );
       _captureError = null;
     });
   } catch (error) {
@@ -294,7 +305,77 @@ class _EmptyNotificationList extends StatelessWidget {
     );
   }
 }
+class _GroupedNotificationList extends StatelessWidget {
+  const _GroupedNotificationList({
+    required this.groups,
+  });
 
+  final Map<String, List<CapturedNotification>> groups;
+
+  @override
+  Widget build(BuildContext context) {
+    final entries = groups.entries.toList();
+
+    // The first notification in each group is the newest because
+    // _notifications is already sorted newest → oldest.
+    entries.sort(
+      (a, b) => b.value.first.timestamp.compareTo(
+        a.value.first.timestamp,
+      ),
+    );
+
+    return ListView(
+      padding: const EdgeInsets.only(bottom: 16),
+      children: [
+        for (final entry in entries) ...[
+          _AppSectionHeader(
+            appName: entry.key,
+            notificationCount: entry.value.length,
+          ),
+          for (final notification in entry.value)
+            _NotificationListItem(
+              notification: notification,
+            ),
+        ],
+      ],
+    );
+  }
+}
+
+class _AppSectionHeader extends StatelessWidget {
+  const _AppSectionHeader({
+    required this.appName,
+    required this.notificationCount,
+  });
+
+  final String appName;
+  final int notificationCount;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 8),
+      child: Row(
+        children: [
+          const Icon(Icons.apps, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              appName,
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+          ),
+          Text(
+            '$notificationCount',
+            style: Theme.of(context).textTheme.labelMedium,
+          ),
+        ],
+      ),
+    );
+  }
+}
 class _NotificationListItem extends StatelessWidget {
   const _NotificationListItem({required this.notification});
 
@@ -308,31 +389,85 @@ class _NotificationListItem extends StatelessWidget {
         : notification.content;
 
     return ListTile(
-      leading: const CircleAvatar(child: Icon(Icons.notifications)),
-      title: Text(
-        notification.appName.isEmpty
-            ? notification.packageName
-            : notification.appName,
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: 16,
+        vertical: 8,
       ),
-      subtitle: Text(
-        '$title\n$content',
-        maxLines: 3,
-        overflow: TextOverflow.ellipsis,
+      leading: const CircleAvatar(
+        child: Icon(Icons.notifications),
       ),
-      isThreeLine: true,
-      trailing: Text(
-        _formatTimestamp(notification.timestamp),
-        textAlign: TextAlign.end,
-        style: Theme.of(context).textTheme.labelSmall,
+      title: Row(
+        children: [
+          Expanded(
+            child: Text(
+              notification.appName.isEmpty
+                  ? notification.packageName
+                  : notification.appName,
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            _formatRelativeTime(notification.timestamp),
+            style: Theme.of(context).textTheme.labelSmall,
+          ),
+        ],
+      ),
+      subtitle: Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(
+                fontWeight: FontWeight.w500,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 2),
+            Text(
+              content,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  String _formatTimestamp(DateTime timestamp) {
-    final localTime = timestamp.toLocal();
-    return '${_twoDigits(localTime.hour)}:${_twoDigits(localTime.minute)}\n'
-        '${_twoDigits(localTime.day)}/${_twoDigits(localTime.month)}';
-  }
+  String _formatRelativeTime(DateTime timestamp) {
+    final now = DateTime.now();
+    final localTimestamp = timestamp.toLocal();
+    final difference = now.difference(localTimestamp);
 
-  String _twoDigits(int value) => value.toString().padLeft(2, '0');
+    if (difference.isNegative || difference.inSeconds < 10) {
+      return 'Just now';
+    }
+
+    if (difference.inMinutes < 60) {
+      return '${difference.inMinutes} min ago';
+    }
+
+    if (difference.inHours < 24) {
+      return '${difference.inHours} hr ago';
+    }
+
+    if (difference.inDays == 1) {
+      return 'Yesterday';
+    }
+
+    if (difference.inDays < 7) {
+      return '${difference.inDays} days ago';
+    }
+
+    return '${localTimestamp.day.toString().padLeft(2, '0')}/'
+        '${localTimestamp.month.toString().padLeft(2, '0')}/'
+        '${localTimestamp.year}';
+  }
 }
