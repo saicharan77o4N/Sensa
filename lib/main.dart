@@ -6,6 +6,7 @@ import 'captured_notification.dart';
 import 'notification_ai_service.dart';
 import 'notification_capture_service.dart';
 import 'notification_database.dart';
+
 void main() {
   runApp(const SensaApp());
 }
@@ -38,6 +39,11 @@ class _NotificationInboxPageState extends State<NotificationInboxPage>
   final _captureService = NotificationCaptureService();
   final _database = NotificationDatabase.instance;
   final List<CapturedNotification> _notifications = [];
+  final TextEditingController _searchController = TextEditingController();
+
+  bool _isSearching = false;
+
+  List<CapturedNotification> _searchResults = [];
   StreamSubscription<CapturedNotification>? _notificationSubscription;
 
   bool _notificationAccessGranted = false;
@@ -61,8 +67,6 @@ class _NotificationInboxPageState extends State<NotificationInboxPage>
     );
     _refreshNotificationAccess();
     _loadSavedNotifications();
-    _testMiniLm();
-    _testImportanceRanking();
   }
 
   @override
@@ -108,68 +112,67 @@ class _NotificationInboxPageState extends State<NotificationInboxPage>
     }
   }
 
-  Future<void> _addNotification(CapturedNotification notification,) async {
-  try {
-    final notificationText =
-        '${notification.title} ${notification.content}'.trim();
+  Future<void> _addNotification(CapturedNotification notification) async {
+    try {
+      final notificationText = '${notification.title} ${notification.content}'
+          .trim();
 
-    final importanceScore =
-        await NotificationAiService.instance
-            .calculateImportanceScore(notificationText);
+      final importanceScore = await NotificationAiService.instance
+          .calculateImportanceScore(notificationText);
 
-    final scoredNotification = CapturedNotification(
-      id: notification.id,
-      packageName: notification.packageName,
-      appName: notification.appName,
-      title: notification.title,
-      content: notification.content,
-      timestamp: notification.timestamp,
-      importanceScore: importanceScore,
-    );
-
-    await _database.insertNotification(scoredNotification);
-
-    if (!mounted) {
-      return;
-    }
-
-    setState(() {
-      _notifications.add(scoredNotification);
-      _notifications.sort(
-        (a, b) => b.timestamp.compareTo(a.timestamp),
+      final scoredNotification = CapturedNotification(
+        id: notification.id,
+        packageName: notification.packageName,
+        appName: notification.appName,
+        title: notification.title,
+        content: notification.content,
+        timestamp: notification.timestamp,
+        importanceScore: importanceScore,
       );
-      _captureError = null;
-    });
 
-    debugPrint(
-      'SENSA SCORE | '
-      '${scoredNotification.importanceScore} | '
-      '${scoredNotification.title}',
-    );
-  } catch (error, stackTrace) {
-    debugPrint('Notification AI scoring failed: $error');
-    debugPrint('$stackTrace');
+      await _database.insertNotification(scoredNotification);
 
-    if (mounted) {
+      if (!mounted) {
+        return;
+      }
+
       setState(() {
-        _captureError = 'Unable to process notification: $error';
+        _notifications.add(scoredNotification);
+        _notifications.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+        _captureError = null;
       });
+
+      debugPrint(
+        'SENSA SCORE | '
+        '${scoredNotification.importanceScore} | '
+        '${scoredNotification.title}',
+      );
+    } catch (error, stackTrace) {
+      debugPrint('Notification AI scoring failed: $error');
+      debugPrint('$stackTrace');
+
+      if (mounted) {
+        setState(() {
+          _captureError = 'Unable to process notification: $error';
+        });
+      }
     }
   }
-}
-Map<String, List<CapturedNotification>> _groupNotificationsByApp() {
-  final groups = <String, List<CapturedNotification>>{};
 
-  for (final notification in _notifications) {
-    final appName = notification.appName.isEmpty
-        ? notification.packageName
-        : notification.appName;
+  Map<String, List<CapturedNotification>> _groupNotificationsByApp() {
+    final groups = <String, List<CapturedNotification>>{};
 
-    groups.putIfAbsent(appName, () => []).add(notification);
+    for (final notification in _notifications) {
+      final appName = notification.appName.isEmpty
+          ? notification.packageName
+          : notification.appName;
+
+      groups.putIfAbsent(appName, () => []).add(notification);
+    }
+
+    return groups;
   }
 
-  return groups;
-}
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -190,6 +193,27 @@ Map<String, List<CapturedNotification>> _groupNotificationsByApp() {
             checking: _checkingAccess,
             onOpenSettings: _openNotificationAccessSettings,
           ),
+
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Search notifications...',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: IconButton(
+                  onPressed: _searchNotifications,
+                  icon: const Icon(Icons.arrow_forward),
+                  tooltip: 'Search',
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              onSubmitted: (_) => _searchNotifications(),
+            ),
+          ),
+
           if (_captureError case final error?)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
@@ -198,88 +222,136 @@ Map<String, List<CapturedNotification>> _groupNotificationsByApp() {
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
             ),
-          Expanded(
-              child: _notifications.isEmpty
-                  ? const _EmptyNotificationList()
-                  : _GroupedNotificationList(
-                      groups: _groupNotificationsByApp(),
-                    ),
-            ),
+            Expanded(
+            child: _isSearching
+                ? (_searchResults.isEmpty
+                    ? const Center(
+                        child: Text('No matching notifications found'),
+                      )
+                    : ListView(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        children: [
+                          for (final notification in _searchResults)
+                            _NotificationListItem(
+                              notification: notification,
+                            ),
+                        ],
+                      ))
+                : (_notifications.isEmpty
+                    ? const _EmptyNotificationList()
+                    : _GroupedNotificationList(
+                        groups: _groupNotificationsByApp(),
+                  )),
+          ),
         ],
       ),
     );
   }
+
   Future<void> _testMiniLm() async {
-  try {
-    final embedding =
-        await NotificationAiService.instance.getEmbedding(
-      'Your OTP is 4821',
-    );
-
-    debugPrint(
-      'MiniLM test embedding length: ${embedding.length}',
-    );
-
-    debugPrint(
-      'MiniLM first 5 values: ${embedding.take(5).toList()}',
-    );
-  } catch (error, stackTrace) {
-    debugPrint('MiniLM test failed: $error');
-    debugPrint('$stackTrace');
-  }
-}
-
-Future<void> _testImportanceRanking() async {
-  final testNotifications = [
-    'Your OTP for login is 4821. Do not share this code.',
-    'Your bank account was debited ₹2,500 for a transaction.',
-    'Congratulations! You won a special discount. Shop now!',
-    'A new entertaining video is waiting for you.',
-  ];
-
-  for (final notification in testNotifications) {
     try {
-      final score =
-          await NotificationAiService.instance
-              .calculateImportanceScore(notification);
+      final embedding = await NotificationAiService.instance.getEmbedding(
+        'Your OTP is 4821',
+      );
 
-      debugPrint(
-        'IMPORTANCE TEST | $score | $notification',
-      );
+      debugPrint('MiniLM test embedding length: ${embedding.length}');
+
+      debugPrint('MiniLM first 5 values: ${embedding.take(5).toList()}');
     } catch (error, stackTrace) {
-      debugPrint(
-        'Importance test failed: $error',
-      );
+      debugPrint('MiniLM test failed: $error');
       debugPrint('$stackTrace');
     }
   }
-}
+
+  Future<void> _testImportanceRanking() async {
+    final testNotifications = [
+      'Your OTP for login is 4821. Do not share this code.',
+      'Your bank account was debited ₹2,500 for a transaction.',
+      'Congratulations! You won a special discount. Shop now!',
+      'A new entertaining video is waiting for you.',
+    ];
+
+    for (final notification in testNotifications) {
+      try {
+        final score = await NotificationAiService.instance
+            .calculateImportanceScore(notification);
+
+        debugPrint('IMPORTANCE TEST | $score | $notification');
+      } catch (error, stackTrace) {
+        debugPrint('Importance test failed: $error');
+        debugPrint('$stackTrace');
+      }
+    }
+  }
 
   Future<void> _loadSavedNotifications() async {
-  try {
-    final savedNotifications = await _database.getNotifications();
+    try {
+      final savedNotifications = await _database.getNotifications();
 
-    if (!mounted) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _notifications
+          ..clear()
+          ..addAll(savedNotifications)
+          ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+        _captureError = null;
+      });
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _captureError = 'Unable to load saved notifications: $error';
+        });
+      }
+    }
+  }
+
+  Future<void> _searchNotifications() async {
+    final query = _searchController.text.trim();
+    debugPrint('SENSA SEARCH START | query: "$query"');
+
+    if (query.isEmpty) {
+      setState(() {
+        _isSearching = false;
+        _searchResults = [];
+      });
       return;
     }
 
     setState(() {
-      _notifications
-        ..clear()
-        ..addAll(savedNotifications)
-        ..sort(
-          (a, b) => b.timestamp.compareTo(a.timestamp),
-        );
-      _captureError = null;
+      _isSearching = true;
     });
-  } catch (error) {
-    if (mounted) {
+
+    try {
+      final results = await NotificationAiService.instance.searchNotifications(
+        query,
+        _notifications,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
       setState(() {
-        _captureError = 'Unable to load saved notifications: $error';
+        _searchResults = results.map((entry) => entry.key).toList();
       });
+      debugPrint(
+      'SENSA SEARCH RESULTS | ${_searchResults.length}',
+      );
+    } catch (error, stackTrace) {
+      debugPrint('Semantic search failed: $error');
+      debugPrint('$stackTrace');
+
+      if (mounted) {
+        setState(() {
+          _captureError = 'Unable to search notifications: $error';
+          _searchResults = [];
+        });
+      }
     }
   }
-}
 }
 
 class _AccessStatusCard extends StatelessWidget {
@@ -381,10 +453,9 @@ class _EmptyNotificationList extends StatelessWidget {
     );
   }
 }
+
 class _GroupedNotificationList extends StatelessWidget {
-  const _GroupedNotificationList({
-    required this.groups,
-  });
+  const _GroupedNotificationList({required this.groups});
 
   final Map<String, List<CapturedNotification>> groups;
 
@@ -395,9 +466,7 @@ class _GroupedNotificationList extends StatelessWidget {
     // The first notification in each group is the newest because
     // _notifications is already sorted newest → oldest.
     entries.sort(
-      (a, b) => b.value.first.timestamp.compareTo(
-        a.value.first.timestamp,
-      ),
+      (a, b) => b.value.first.timestamp.compareTo(a.value.first.timestamp),
     );
 
     return ListView(
@@ -409,9 +478,7 @@ class _GroupedNotificationList extends StatelessWidget {
             notificationCount: entry.value.length,
           ),
           for (final notification in entry.value)
-            _NotificationListItem(
-              notification: notification,
-            ),
+            _NotificationListItem(notification: notification),
         ],
       ],
     );
@@ -438,9 +505,8 @@ class _AppSectionHeader extends StatelessWidget {
           Expanded(
             child: Text(
               appName,
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+              style: Theme.of(context).textTheme.titleSmall
+                  ?.copyWith(fontWeight: FontWeight.bold),
             ),
           ),
           Text(
@@ -452,27 +518,28 @@ class _AppSectionHeader extends StatelessWidget {
     );
   }
 }
+
 class _NotificationListItem extends StatelessWidget {
   const _NotificationListItem({required this.notification});
 
   final CapturedNotification notification;
   String _importanceLabel() {
-  final score = notification.importanceScore;
+    final score = notification.importanceScore;
 
-  if (score == null) {
-    return 'UNRANKED';
+    if (score == null) {
+      return 'UNRANKED';
+    }
+
+    if (score >= 0.08) {
+      return 'HIGH';
+    }
+
+    if (score >= 0.02) {
+      return 'MEDIUM';
+    }
+
+    return 'LOW';
   }
-
-  if (score >= 0.08) {
-    return 'HIGH';
-  }
-
-  if (score >= 0.02) {
-    return 'MEDIUM';
-  }
-
-  return 'LOW';
-}
 
   @override
   Widget build(BuildContext context) {
@@ -482,13 +549,8 @@ class _NotificationListItem extends StatelessWidget {
         : notification.content;
 
     return ListTile(
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: 16,
-        vertical: 8,
-      ),
-      leading: const CircleAvatar(
-        child: Icon(Icons.notifications),
-      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      leading: const CircleAvatar(child: Icon(Icons.notifications)),
       title: Row(
         children: [
           Expanded(
@@ -496,9 +558,7 @@ class _NotificationListItem extends StatelessWidget {
               notification.appName.isEmpty
                   ? notification.packageName
                   : notification.appName,
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-              ),
+              style: const TextStyle(fontWeight: FontWeight.w600),
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -514,37 +574,26 @@ class _NotificationListItem extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  _importanceLabel(),
-                  style: Theme.of(context).textTheme.labelSmall,
-                ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(8),
               ),
-              const SizedBox(height: 6),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w500,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+              child: Text(
+                _importanceLabel(),
+                style: Theme.of(context).textTheme.labelSmall,
               ),
-              const SizedBox(height: 2),
+            ),
+            const SizedBox(height: 6),
             Text(
-              content,
-              maxLines: 2,
+              title,
+              style: const TextStyle(fontWeight: FontWeight.w500),
+              maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
+            const SizedBox(height: 2),
+            Text(content, maxLines: 2, overflow: TextOverflow.ellipsis),
           ],
         ),
       ),

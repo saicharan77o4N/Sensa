@@ -2,6 +2,7 @@ import 'package:dart_bert_tokenizer/dart_bert_tokenizer.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_onnxruntime/flutter_onnxruntime.dart';
+import 'captured_notification.dart';
 import 'dart:math';
 class NotificationAiService {
   NotificationAiService._();
@@ -181,6 +182,46 @@ Future<void> _initialize() async {
 
     return importantScore - distractionScore;
   }
+    Future<List<MapEntry<CapturedNotification, double>>>
+        searchNotifications(
+    String query,
+    List<CapturedNotification> notifications,
+    ) async {
+    final queryEmbedding = await getEmbedding(query);
+
+    final results =
+        <MapEntry<CapturedNotification, double>>[];
+
+    for (final notification in notifications) {
+        final notificationText =
+            '${notification.title} ${notification.content}'.trim();
+
+        if (notificationText.isEmpty) {
+        continue;
+        }
+
+        final notificationEmbedding =
+            await getEmbedding(notificationText);
+
+        final similarity = cosineSimilarity(
+        queryEmbedding,
+        notificationEmbedding,
+        );
+
+        results.add(
+        MapEntry(
+            notification,
+            similarity,
+        ),
+        );
+    }
+
+    results.sort(
+        (a, b) => b.value.compareTo(a.value),
+    );
+
+    return results;
+    }
 double cosineSimilarity(
   List<double> a,
   List<double> b,
