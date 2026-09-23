@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'captured_notification.dart';
+import 'notification_ai_service.dart';
 import 'notification_capture_service.dart';
 import 'notification_database.dart';
 void main() {
@@ -46,6 +47,7 @@ class _NotificationInboxPageState extends State<NotificationInboxPage>
   @override
   void initState() {
     super.initState();
+    NotificationAiService.instance.initialize();
     WidgetsBinding.instance.addObserver(this);
     _notificationSubscription = _captureService.notifications.listen(
       _addNotification,
@@ -59,6 +61,7 @@ class _NotificationInboxPageState extends State<NotificationInboxPage>
     );
     _refreshNotificationAccess();
     _loadSavedNotifications();
+    _testMiniLm();
   }
 
   @override
@@ -179,6 +182,25 @@ Map<String, List<CapturedNotification>> _groupNotificationsByApp() {
       ),
     );
   }
+  Future<void> _testMiniLm() async {
+  try {
+    final embedding =
+        await NotificationAiService.instance.getEmbedding(
+      'Your OTP is 4821',
+    );
+
+    debugPrint(
+      'MiniLM test embedding length: ${embedding.length}',
+    );
+
+    debugPrint(
+      'MiniLM first 5 values: ${embedding.take(5).toList()}',
+    );
+  } catch (error, stackTrace) {
+    debugPrint('MiniLM test failed: $error');
+    debugPrint('$stackTrace');
+  }
+}
   Future<void> _loadSavedNotifications() async {
   try {
     final savedNotifications = await _database.getNotifications();
