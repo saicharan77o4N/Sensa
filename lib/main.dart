@@ -62,6 +62,7 @@ class _NotificationInboxPageState extends State<NotificationInboxPage>
     _refreshNotificationAccess();
     _loadSavedNotifications();
     _testMiniLm();
+    _testImportanceRanking();
   }
 
   @override
@@ -107,25 +108,51 @@ class _NotificationInboxPageState extends State<NotificationInboxPage>
     }
   }
 
-  Future<void> _addNotification(CapturedNotification notification) async {
+  Future<void> _addNotification(CapturedNotification notification,) async {
   try {
-    await _database.insertNotification(notification);
+    final notificationText =
+        '${notification.title} ${notification.content}'.trim();
+
+    final importanceScore =
+        await NotificationAiService.instance
+            .calculateImportanceScore(notificationText);
+
+    final scoredNotification = CapturedNotification(
+      id: notification.id,
+      packageName: notification.packageName,
+      appName: notification.appName,
+      title: notification.title,
+      content: notification.content,
+      timestamp: notification.timestamp,
+      importanceScore: importanceScore,
+    );
+
+    await _database.insertNotification(scoredNotification);
 
     if (!mounted) {
       return;
     }
 
     setState(() {
-      _notifications.add(notification);
+      _notifications.add(scoredNotification);
       _notifications.sort(
         (a, b) => b.timestamp.compareTo(a.timestamp),
       );
       _captureError = null;
     });
-  } catch (error) {
+
+    debugPrint(
+      'SENSA SCORE | '
+      '${scoredNotification.importanceScore} | '
+      '${scoredNotification.title}',
+    );
+  } catch (error, stackTrace) {
+    debugPrint('Notification AI scoring failed: $error');
+    debugPrint('$stackTrace');
+
     if (mounted) {
       setState(() {
-        _captureError = 'Unable to save notification: $error';
+        _captureError = 'Unable to process notification: $error';
       });
     }
   }
@@ -201,6 +228,33 @@ Map<String, List<CapturedNotification>> _groupNotificationsByApp() {
     debugPrint('$stackTrace');
   }
 }
+
+Future<void> _testImportanceRanking() async {
+  final testNotifications = [
+    'Your OTP for login is 4821. Do not share this code.',
+    'Your bank account was debited ₹2,500 for a transaction.',
+    'Congratulations! You won a special discount. Shop now!',
+    'A new entertaining video is waiting for you.',
+  ];
+
+  for (final notification in testNotifications) {
+    try {
+      final score =
+          await NotificationAiService.instance
+              .calculateImportanceScore(notification);
+
+      debugPrint(
+        'IMPORTANCE TEST | $score | $notification',
+      );
+    } catch (error, stackTrace) {
+      debugPrint(
+        'Importance test failed: $error',
+      );
+      debugPrint('$stackTrace');
+    }
+  }
+}
+
   Future<void> _loadSavedNotifications() async {
   try {
     final savedNotifications = await _database.getNotifications();
@@ -402,6 +456,23 @@ class _NotificationListItem extends StatelessWidget {
   const _NotificationListItem({required this.notification});
 
   final CapturedNotification notification;
+  String _importanceLabel() {
+  final score = notification.importanceScore;
+
+  if (score == null) {
+    return 'UNRANKED';
+  }
+
+  if (score >= 0.08) {
+    return 'HIGH';
+  }
+
+  if (score >= 0.02) {
+    return 'MEDIUM';
+  }
+
+  return 'LOW';
+}
 
   @override
   Widget build(BuildContext context) {
@@ -443,15 +514,32 @@ class _NotificationListItem extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              title,
-              style: const TextStyle(
-                fontWeight: FontWeight.w500,
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: Theme.of(context)
+                      .colorScheme
+                      .surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  _importanceLabel(),
+                  style: Theme.of(context).textTheme.labelSmall,
+                ),
               ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 2),
+              const SizedBox(height: 6),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w500,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 2),
             Text(
               content,
               maxLines: 2,

@@ -2,7 +2,7 @@ import 'package:dart_bert_tokenizer/dart_bert_tokenizer.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_onnxruntime/flutter_onnxruntime.dart';
-
+import 'dart:math';
 class NotificationAiService {
   NotificationAiService._();
 
@@ -14,6 +14,23 @@ class NotificationAiService {
   OrtSession? _onnxSession;
   WordPieceTokenizer? _tokenizer;
   Future<void>? _initializationFuture;
+    final List<String> _importantConcepts = [
+    'urgent important notification',
+    'work or college notification',
+    'financial transaction or bank alert',
+    'security alert or verification code',
+    'important personal message',
+  ];
+
+  final List<String> _distractionConcepts = [
+    'advertisement promotion marketing',
+    'social media entertainment',
+    'spam or unwanted notification',
+  ];
+
+  List<List<double>>? _importantConceptEmbeddings;
+  List<List<double>>? _distractionEmbeddings;
+
   Future<void> initialize() {
   if (_onnxSession != null && _tokenizer != null) {
     return Future.value();
@@ -62,7 +79,32 @@ Future<void> _initialize() async {
     rethrow;
   }
 }
+  Future<void> _initializeConceptEmbeddings() async {
+    if (_importantConceptEmbeddings != null &&
+        _distractionEmbeddings != null) {
+      return;
+    }
 
+    _importantConceptEmbeddings = [];
+
+    for (final concept in _importantConcepts) {
+      _importantConceptEmbeddings!.add(
+        await getEmbedding(concept),
+      );
+    }
+
+    _distractionEmbeddings = [];
+
+    for (final concept in _distractionConcepts) {
+      _distractionEmbeddings!.add(
+        await getEmbedding(concept),
+      );
+    }
+
+    debugPrint(
+      'Sensa importance concepts initialized.',
+    );
+  }
   Future<List<double>> getEmbedding(
     String text,
   ) async {
@@ -105,4 +147,65 @@ Future<void> _initialize() async {
 
     return embedding.cast<double>();
   }
+    Future<double> calculateImportanceScore(String text) async {
+    await _initializeConceptEmbeddings();
+
+    final notificationEmbedding =
+        await getEmbedding(text);
+
+    double importantScore = 0;
+
+    for (final conceptEmbedding
+        in _importantConceptEmbeddings!) {
+      importantScore += cosineSimilarity(
+        notificationEmbedding,
+        conceptEmbedding,
+      );
+    }
+
+    double distractionScore = 0;
+
+    for (final conceptEmbedding
+        in _distractionEmbeddings!) {
+      distractionScore += cosineSimilarity(
+        notificationEmbedding,
+        conceptEmbedding,
+      );
+    }
+
+    importantScore /=
+        _importantConceptEmbeddings!.length;
+
+    distractionScore /=
+        _distractionEmbeddings!.length;
+
+    return importantScore - distractionScore;
+  }
+double cosineSimilarity(
+  List<double> a,
+  List<double> b,
+) {
+  if (a.length != b.length) {
+    throw ArgumentError(
+      'Embedding lengths must match.',
+    );
+  }
+
+  double dotProduct = 0;
+  double magnitudeA = 0;
+  double magnitudeB = 0;
+
+  for (int i = 0; i < a.length; i++) {
+    dotProduct += a[i] * b[i];
+    magnitudeA += a[i] * a[i];
+    magnitudeB += b[i] * b[i];
+  }
+
+  if (magnitudeA == 0 || magnitudeB == 0) {
+    return 0;
+  }
+
+  return dotProduct /
+      (sqrt(magnitudeA) * sqrt(magnitudeB));
+}
 }

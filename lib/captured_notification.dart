@@ -6,6 +6,7 @@ class CapturedNotification {
     required this.title,
     required this.content,
     required this.timestamp,
+    this.importanceScore,
   });
 
   final String id;
@@ -14,6 +15,7 @@ class CapturedNotification {
   final String title;
   final String content;
   final DateTime timestamp;
+  final double? importanceScore;
 
   factory CapturedNotification.fromPlatformMap(Map<Object?, Object?> values) {
     String stringValue(String key) => values[key]?.toString().trim() ?? '';
@@ -26,6 +28,7 @@ class CapturedNotification {
       title: stringValue('title'),
       content: stringValue('content'),
       timestamp: DateTime.tryParse(timestampValue)?.toLocal() ?? DateTime.now(),
+      importanceScore: null,
     );
   }
     factory CapturedNotification.fromDatabaseMap(Map<String, Object?> values) {
@@ -39,6 +42,7 @@ class CapturedNotification {
       title: stringValue('title'),
       content: stringValue('content'),
       timestamp: DateTime.tryParse(timestampValue)?.toLocal() ?? DateTime.now(),
+      importanceScore: (values['importance_score'] as num?)?.toDouble(),
     );
   }
 }

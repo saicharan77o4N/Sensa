@@ -9,7 +9,7 @@ class NotificationDatabase {
   static final NotificationDatabase instance = NotificationDatabase._();
 
   static const _databaseName = 'sensa.db';
-  static const _databaseVersion = 1;
+  static const _databaseVersion = 2;
   static const _tableName = 'notifications';
 
   Database? _database;
@@ -28,22 +28,30 @@ class NotificationDatabase {
     final pathToDatabase = join(databasesPath, _databaseName);
 
     return openDatabase(
-      pathToDatabase,
-      version: _databaseVersion,
-      onCreate: (database, version) async {
-        await database.execute('''
-          CREATE TABLE $_tableName (
-            id TEXT PRIMARY KEY,
-            package_name TEXT NOT NULL,
-            app_name TEXT NOT NULL,
-            title TEXT NOT NULL,
-            content TEXT NOT NULL,
-            timestamp TEXT NOT NULL,
-            created_at TEXT NOT NULL
-          )
-        ''');
-      },
-    );
+        pathToDatabase,
+        version: _databaseVersion,
+        onCreate: (database, version) async {
+            await database.execute('''
+            CREATE TABLE $_tableName (
+                id TEXT PRIMARY KEY,
+                package_name TEXT NOT NULL,
+                app_name TEXT NOT NULL,
+                title TEXT NOT NULL,
+                content TEXT NOT NULL,
+                timestamp TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                importance_score REAL
+            )
+            ''');
+        },
+        onUpgrade: (database, oldVersion, newVersion) async {
+            if (oldVersion < 2) {
+            await database.execute(
+                'ALTER TABLE $_tableName ADD COLUMN importance_score REAL',
+            );
+            }
+        },
+        );
   }
 
   Future<void> insertNotification(
@@ -61,6 +69,7 @@ class NotificationDatabase {
         'content': notification.content,
         'timestamp': notification.timestamp.toUtc().toIso8601String(),
         'created_at': DateTime.now().toUtc().toIso8601String(),
+        'importance_score': notification.importanceScore,
       },
       conflictAlgorithm: ConflictAlgorithm.ignore,
     );
