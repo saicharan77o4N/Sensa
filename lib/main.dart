@@ -1,5 +1,5 @@
 import 'dart:async';
-
+import 'package:speech_to_text/speech_to_text.dart';
 import 'package:flutter/material.dart';
 
 import 'captured_notification.dart';
@@ -45,6 +45,9 @@ class _NotificationInboxPageState extends State<NotificationInboxPage>
   String? _queryAnswer;
 
   List<CapturedNotification> _searchResults = [];
+  final SpeechToText _speechToText = SpeechToText();
+
+  bool _isListening = false;
   StreamSubscription<CapturedNotification>? _notificationSubscription;
 
   bool _notificationAccessGranted = false;
@@ -173,7 +176,64 @@ class _NotificationInboxPageState extends State<NotificationInboxPage>
 
     return groups;
   }
+  Future<void> _startListening() async {
+  final available = await _speechToText.initialize(
+    onStatus: (status) {
+      debugPrint('SENSA SPEECH STATUS | $status');
 
+      if (status == 'done' || status == 'notListening') {
+        if (mounted) {
+          setState(() {
+            _isListening = false;
+          });
+        }
+      }
+    },
+    onError: (error) {
+      debugPrint('SENSA SPEECH ERROR | $error');
+
+      if (mounted) {
+        setState(() {
+          _isListening = false;
+        });
+      }
+    },
+  );
+
+  if (!available) {
+    debugPrint('SENSA SPEECH | Speech recognition unavailable');
+    return;
+  }
+
+  setState(() {
+    _isListening = true;
+  });
+
+  await _speechToText.listen(
+    onResult: (result) {
+      final recognizedText = result.recognizedWords;
+
+      debugPrint(
+        'SENSA SPEECH RESULT | "$recognizedText"',
+      );
+
+      _searchController.text = recognizedText;
+
+      if (result.finalResult) {
+        _searchNotifications();
+      }
+    },
+  );
+}
+Future<void> _stopListening() async {
+  await _speechToText.stop();
+
+  if (mounted) {
+    setState(() {
+      _isListening = false;
+    });
+  }
+}
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -202,10 +262,26 @@ class _NotificationInboxPageState extends State<NotificationInboxPage>
               decoration: InputDecoration(
                 hintText: 'Search notifications...',
                 prefixIcon: const Icon(Icons.search),
-                suffixIcon: IconButton(
-                  onPressed: _searchNotifications,
-                  icon: const Icon(Icons.arrow_forward),
-                  tooltip: 'Search',
+                suffixIcon: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      onPressed: _isListening
+                          ? _stopListening
+                          : _startListening,
+                      icon: Icon(
+                        _isListening ? Icons.mic : Icons.mic_none,
+                      ),
+                      tooltip: _isListening
+                          ? 'Stop listening'
+                          : 'Voice search',
+                    ),
+                    IconButton(
+                      onPressed: _searchNotifications,
+                      icon: const Icon(Icons.arrow_forward),
+                      tooltip: 'Search',
+                    ),
+                  ],
                 ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
