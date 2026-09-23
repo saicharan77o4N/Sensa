@@ -42,6 +42,7 @@ class _NotificationInboxPageState extends State<NotificationInboxPage>
   final TextEditingController _searchController = TextEditingController();
 
   bool _isSearching = false;
+  String? _queryAnswer;
 
   List<CapturedNotification> _searchResults = [];
   StreamSubscription<CapturedNotification>? _notificationSubscription;
@@ -223,26 +224,54 @@ class _NotificationInboxPageState extends State<NotificationInboxPage>
               ),
             ),
             Expanded(
-            child: _isSearching
-                ? (_searchResults.isEmpty
-                    ? const Center(
-                        child: Text('No matching notifications found'),
-                      )
-                    : ListView(
-                        padding: const EdgeInsets.only(bottom: 16),
-                        children: [
-                          for (final notification in _searchResults)
-                            _NotificationListItem(
-                              notification: notification,
-                            ),
-                        ],
-                      ))
-                : (_notifications.isEmpty
-                    ? const _EmptyNotificationList()
-                    : _GroupedNotificationList(
-                        groups: _groupNotificationsByApp(),
-                  )),
-          ),
+  child: _isSearching
+      ? ListView(
+          padding: const EdgeInsets.only(bottom: 16),
+          children: [
+            if (_queryAnswer != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+                child: Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.auto_awesome),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            _queryAnswer!,
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyLarge,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            if (_searchResults.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(32),
+                child: Center(
+                  child: Text('No matching notifications found'),
+                ),
+              )
+            else
+              for (final notification in _searchResults)
+                _NotificationListItem(
+                  notification: notification,
+                ),
+          ],
+        )
+      : (_notifications.isEmpty
+          ? const _EmptyNotificationList()
+          : _GroupedNotificationList(
+              groups: _groupNotificationsByApp(),
+            )),
+            ),
         ],
       ),
     );
@@ -262,7 +291,7 @@ class _NotificationInboxPageState extends State<NotificationInboxPage>
       debugPrint('$stackTrace');
     }
   }
-
+  
   Future<void> _testImportanceRanking() async {
     final testNotifications = [
       'Your OTP for login is 4821. Do not share this code.',
@@ -283,6 +312,7 @@ class _NotificationInboxPageState extends State<NotificationInboxPage>
       }
     }
   }
+  
 
   Future<void> _loadSavedNotifications() async {
     try {
@@ -309,56 +339,56 @@ class _NotificationInboxPageState extends State<NotificationInboxPage>
   }
 
   Future<void> _searchNotifications() async {
-    final query = _searchController.text.trim();
-    debugPrint('SENSA SEARCH START | query: "$query"');
+  final query = _searchController.text.trim();
 
-    if (query.isEmpty) {
-      setState(() {
-        _isSearching = false;
-        _searchResults = [];
-      });
+  debugPrint('SENSA QUERY START | query: "$query"');
+
+  if (query.isEmpty) {
+  setState(() {
+    _isSearching = false;
+    _queryAnswer = null;
+    _searchResults = [];
+  });
+  return;
+}
+
+  setState(() {
+    _isSearching = true;
+  });
+
+  try {
+    final result = await NotificationAiService.instance.answerQuery(
+      query,
+      _notifications,
+    );
+
+    if (!mounted) {
       return;
     }
 
     setState(() {
-      _isSearching = true;
+      _queryAnswer = result.answer;
+      _searchResults = result.notifications;
     });
 
-    try {
-      final understoodQuery =
-        NotificationAiService.instance.understandQuery(query);
+    debugPrint(
+      'SENSA QUERY ANSWER | '
+      '"$query" | '
+      '${result.answer} | '
+      'matches: ${result.notifications.length}',
+    );
+  } catch (error, stackTrace) {
+    debugPrint('Sensa query failed: $error');
+    debugPrint('$stackTrace');
 
-        debugPrint(
-          'SENSA UNDERSTOOD QUERY | "$understoodQuery"',
-        );
-
-        final results = await NotificationAiService.instance.searchNotifications(
-          understoodQuery,
-          _notifications,
-        );
-
-      if (!mounted) {
-        return;
-      }
-
+    if (mounted) {
       setState(() {
-        _searchResults = results.map((entry) => entry.key).toList();
+        _captureError = 'Unable to process query: $error';
+        _searchResults = [];
       });
-      debugPrint(
-      'SENSA SEARCH RESULTS | ${_searchResults.length}',
-      );
-    } catch (error, stackTrace) {
-      debugPrint('Semantic search failed: $error');
-      debugPrint('$stackTrace');
-
-      if (mounted) {
-        setState(() {
-          _captureError = 'Unable to search notifications: $error';
-          _searchResults = [];
-        });
-      }
     }
   }
+}
 }
 
 class _AccessStatusCard extends StatelessWidget {

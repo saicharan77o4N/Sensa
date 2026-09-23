@@ -4,6 +4,34 @@ import 'package:flutter/services.dart';
 import 'package:flutter_onnxruntime/flutter_onnxruntime.dart';
 import 'captured_notification.dart';
 import 'dart:math';
+enum NotificationQueryIntent {
+  search,
+  count,
+  today,
+  important,
+}
+class NotificationQueryResult {
+  const NotificationQueryResult({
+    required this.intent,
+    required this.answer,
+    required this.notifications,
+  });
+
+  final NotificationQueryIntent intent;
+  final String answer;
+  final List<CapturedNotification> notifications;
+}
+class NotificationQueryContext {
+  const NotificationQueryContext({
+    required this.intent,
+    required this.topic,
+    required this.isToday,
+  });
+
+  final NotificationQueryIntent intent;
+  final String? topic;
+  final bool isToday;
+}
 class NotificationAiService {
   NotificationAiService._();
 
@@ -277,5 +305,203 @@ String understandQuery(String query) {
   }
 
   return normalized;
+}
+NotificationQueryIntent detectQueryIntent(String query) {
+  final normalized = query.trim().toLowerCase();
+
+  if (normalized.isEmpty) {
+    return NotificationQueryIntent.search;
+  }
+
+  if (normalized.contains('how many') ||
+      normalized.contains('count') ||
+      normalized.contains('number of')) {
+    return NotificationQueryIntent.count;
+  }
+
+  if (normalized.contains('today') ||
+      normalized.contains('this morning') ||
+      normalized.contains('this afternoon') ||
+      normalized.contains('tonight')) {
+    return NotificationQueryIntent.today;
+  }
+
+  if (normalized.contains('important') ||
+      normalized.contains('urgent') ||
+      normalized.contains('priority')) {
+    return NotificationQueryIntent.important;
+  }
+
+  return NotificationQueryIntent.search;
+}
+NotificationQueryContext extractQueryContext(String query) {
+  final normalized = query.trim().toLowerCase();
+  final intent = detectQueryIntent(normalized);
+
+  final isToday =
+      normalized.contains('today') ||
+      normalized.contains('this morning') ||
+      normalized.contains('this afternoon') ||
+      normalized.contains('tonight');
+
+  String? topic;
+
+  var cleaned = normalized;
+
+  const timePhrases = [
+    'today',
+    'this morning',
+    'this afternoon',
+    'tonight',
+  ];
+
+  for (final phrase in timePhrases) {
+    cleaned = cleaned.replaceAll(phrase, ' ');
+  }
+
+  const questionPhrases = [
+  'did i receive any',
+  'did i receive',
+  'have i received any',
+  'have i received',
+  'what notifications did i receive',
+  'what notifications do i have',
+  'what notifications did i get',
+  'what notifications do i get',
+  'show me',
+  'show',
+  'find me',
+  'find',
+  'search for',
+  'search',
+  'give me',
+  'get me',
+  'get',
+];
+
+  for (final phrase in questionPhrases) {
+    cleaned = cleaned.replaceAll(phrase, ' ');
+  }
+  cleaned = cleaned
+    .replaceAll('what', ' ')
+    .replaceAll('did i', ' ')
+    .replaceAll('do i', ' ')
+    .replaceAll('have i', ' ')
+    .replaceAll('receive', ' ')
+    .replaceAll('received', ' ')
+    .replaceAll('get', ' ');
+
+  cleaned = cleaned
+    .replaceAll('notifications', ' ')
+    .replaceAll('notification', ' ')
+    .replaceAll('any', ' ')
+    .replaceAll('the', ' ')
+    .replaceAll('?', ' ')
+    .replaceAll('.', ' ')
+    .trim();
+    if (intent == NotificationQueryIntent.count ||
+    intent == NotificationQueryIntent.important) {
+  cleaned = '';
+}
+
+  if (cleaned.isNotEmpty) {
+    topic = cleaned.replaceAll(RegExp(r'\s+'), ' ');
+  }
+
+  return NotificationQueryContext(
+    intent: intent,
+    topic: topic,
+    isToday: isToday,
+  );
+}
+Future<NotificationQueryResult> answerQuery(
+  String query,
+  List<CapturedNotification> notifications,
+) async {
+  final intent = detectQueryIntent(query);
+
+  switch (intent) {
+    case NotificationQueryIntent.count:
+      return NotificationQueryResult(
+        intent: intent,
+        answer: 'You have ${notifications.length} notifications.',
+        notifications: notifications,
+      );
+
+    case NotificationQueryIntent.today:
+        final context = extractQueryContext(query);
+        final now = DateTime.now();
+
+        var todayNotifications = notifications.where((notification) {
+            final timestamp = notification.timestamp.toLocal();
+
+            return timestamp.year == now.year &&
+                timestamp.month == now.month &&
+                timestamp.day == now.day;
+        }).toList();
+
+        if (context.topic != null) {
+            final topicResults = await searchNotifications(
+            context.topic!,
+            todayNotifications,
+            );
+
+    const minimumSimilarity = 0.35;
+
+    todayNotifications = topicResults
+        .where((entry) => entry.value >= minimumSimilarity)
+        .map((entry) => entry.key)
+        .toList();
+  }
+
+    final count = todayNotifications.length;
+    final notificationWord = count == 1 ? 'notification' : 'notifications';
+    final answer = count == 0
+    ? context.topic == null
+        ? 'You have no notifications from today.'
+        : 'You have no ${context.topic} notifications from today.'
+    : context.topic == null
+        ? 'You have $count $notificationWord from today.'
+        : 'You have $count ${context.topic} $notificationWord from today.';
+
+  return NotificationQueryResult(
+    intent: intent,
+    answer: answer,
+    notifications: todayNotifications,
+  );
+
+    case NotificationQueryIntent.important:
+      final importantNotifications = notifications.where((notification) {
+        final score = notification.importanceScore;
+        return score != null && score >= 0.08;
+      }).toList();
+
+      return NotificationQueryResult(
+        intent: intent,
+        answer: importantNotifications.isEmpty
+            ? 'You have no high-priority notifications.'
+            : 'You have ${importantNotifications.length} high-priority notifications.',
+        notifications: importantNotifications,
+      );
+
+    case NotificationQueryIntent.search:
+      final understoodQuery = understandQuery(query);
+
+      final results = await searchNotifications(
+        understoodQuery,
+        notifications,
+      );
+
+      final matchingNotifications =
+          results.map((entry) => entry.key).toList();
+
+      return NotificationQueryResult(
+        intent: intent,
+        answer: matchingNotifications.isEmpty
+            ? 'I could not find matching notifications.'
+            : 'I found ${matchingNotifications.length} matching notifications.',
+        notifications: matchingNotifications,
+      );
+  }
 }
 }
