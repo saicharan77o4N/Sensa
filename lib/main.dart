@@ -325,10 +325,17 @@ class _NotificationInboxPageState extends State<NotificationInboxPage>
     });
 
     try {
-      final results = await NotificationAiService.instance.searchNotifications(
-        query,
-        _notifications,
-      );
+      final understoodQuery =
+        NotificationAiService.instance.understandQuery(query);
+
+        debugPrint(
+          'SENSA UNDERSTOOD QUERY | "$understoodQuery"',
+        );
+
+        final results = await NotificationAiService.instance.searchNotifications(
+          understoodQuery,
+          _notifications,
+        );
 
       if (!mounted) {
         return;

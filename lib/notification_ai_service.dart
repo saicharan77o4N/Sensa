@@ -249,4 +249,33 @@ double cosineSimilarity(
   return dotProduct /
       (sqrt(magnitudeA) * sqrt(magnitudeB));
 }
+String understandQuery(String query) {
+  final normalized = query.trim().toLowerCase();
+
+  if (normalized.isEmpty) {
+    return '';
+  }
+
+  const prefixes = [
+    'show me',
+    'show',
+    'find me',
+    'find',
+    'search for',
+    'search',
+    'give me',
+    'get me',
+    'get',
+    'what are',
+    'what is',
+  ];
+
+  for (final prefix in prefixes) {
+    if (normalized.startsWith('$prefix ')) {
+      return normalized.substring(prefix.length).trim();
+    }
+  }
+
+  return normalized;
+}
 }
