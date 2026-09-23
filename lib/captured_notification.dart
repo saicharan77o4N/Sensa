@@ -28,4 +28,17 @@ class CapturedNotification {
       timestamp: DateTime.tryParse(timestampValue)?.toLocal() ?? DateTime.now(),
     );
   }
+    factory CapturedNotification.fromDatabaseMap(Map<String, Object?> values) {
+    String stringValue(String key) => values[key]?.toString().trim() ?? '';
+    final timestampValue = stringValue('timestamp');
+
+    return CapturedNotification(
+      id: stringValue('id'),
+      packageName: stringValue('package_name'),
+      appName: stringValue('app_name'),
+      title: stringValue('title'),
+      content: stringValue('content'),
+      timestamp: DateTime.tryParse(timestampValue)?.toLocal() ?? DateTime.now(),
+    );
+  }
 }

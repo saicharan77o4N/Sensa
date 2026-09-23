@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'captured_notification.dart';
 import 'notification_capture_service.dart';
-
+import 'notification_database.dart';
 void main() {
   runApp(const SensaApp());
 }
@@ -35,6 +35,7 @@ class NotificationInboxPage extends StatefulWidget {
 class _NotificationInboxPageState extends State<NotificationInboxPage>
     with WidgetsBindingObserver {
   final _captureService = NotificationCaptureService();
+  final _database = NotificationDatabase.instance;
   final List<CapturedNotification> _notifications = [];
   StreamSubscription<CapturedNotification>? _notificationSubscription;
 
@@ -57,6 +58,7 @@ class _NotificationInboxPageState extends State<NotificationInboxPage>
       },
     );
     _refreshNotificationAccess();
+    _loadSavedNotifications();
   }
 
   @override
@@ -102,7 +104,10 @@ class _NotificationInboxPageState extends State<NotificationInboxPage>
     }
   }
 
-  void _addNotification(CapturedNotification notification) {
+  Future<void> _addNotification(CapturedNotification notification) async {
+  try {
+    await _database.insertNotification(notification);
+
     if (!mounted) {
       return;
     }
@@ -111,7 +116,14 @@ class _NotificationInboxPageState extends State<NotificationInboxPage>
       _notifications.insert(0, notification);
       _captureError = null;
     });
+  } catch (error) {
+    if (mounted) {
+      setState(() {
+        _captureError = 'Unable to save notification: $error';
+      });
+    }
   }
+}
 
   @override
   Widget build(BuildContext context) {
@@ -159,6 +171,28 @@ class _NotificationInboxPageState extends State<NotificationInboxPage>
       ),
     );
   }
+  Future<void> _loadSavedNotifications() async {
+  try {
+    final savedNotifications = await _database.getNotifications();
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _notifications
+        ..clear()
+        ..addAll(savedNotifications);
+      _captureError = null;
+    });
+  } catch (error) {
+    if (mounted) {
+      setState(() {
+        _captureError = 'Unable to load saved notifications: $error';
+      });
+    }
+  }
+}
 }
 
 class _AccessStatusCard extends StatelessWidget {
