@@ -1,122 +1,304 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import 'captured_notification.dart';
+import 'notification_capture_service.dart';
+
 void main() {
-  runApp(const MyApp());
+  runApp(const SensaApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class SensaApp extends StatelessWidget {
+  const SensaApp({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
+      title: 'Sensa',
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: .fromSeed(seedColor: Colors.deepPurple),
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
+        useMaterial3: true,
       ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      home: const NotificationInboxPage(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
+class NotificationInboxPage extends StatefulWidget {
+  const NotificationInboxPage({super.key});
 
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  State<NotificationInboxPage> createState() => _NotificationInboxPageState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+class _NotificationInboxPageState extends State<NotificationInboxPage>
+    with WidgetsBindingObserver {
+  final _captureService = NotificationCaptureService();
+  final List<CapturedNotification> _notifications = [];
+  StreamSubscription<CapturedNotification>? _notificationSubscription;
 
-  void _incrementCounter() {
+  bool _notificationAccessGranted = false;
+  bool _checkingAccess = true;
+  String? _captureError;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _notificationSubscription = _captureService.notifications.listen(
+      _addNotification,
+      onError: (Object error) {
+        if (mounted) {
+          setState(
+            () => _captureError = 'Unable to receive notifications: $error',
+          );
+        }
+      },
+    );
+    _refreshNotificationAccess();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _refreshNotificationAccess();
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _notificationSubscription?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _refreshNotificationAccess() async {
+    try {
+      final granted = await _captureService.isNotificationAccessGranted();
+      if (mounted) {
+        setState(() {
+          _notificationAccessGranted = granted;
+          _checkingAccess = false;
+        });
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _checkingAccess = false;
+          _captureError = 'Unable to check notification access: $error';
+        });
+      }
+    }
+  }
+
+  Future<void> _openNotificationAccessSettings() async {
+    try {
+      await _captureService.openNotificationAccessSettings();
+    } catch (error) {
+      if (mounted) {
+        setState(() => _captureError = 'Unable to open settings: $error');
+      }
+    }
+  }
+
+  void _addNotification(CapturedNotification notification) {
+    if (!mounted) {
+      return;
+    }
+
     setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
+      _notifications.insert(0, notification);
+      _captureError = null;
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
     return Scaffold(
       appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
+        title: const Text('Sensa'),
+        actions: [
+          IconButton(
+            onPressed: _refreshNotificationAccess,
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Refresh notification access',
+          ),
+        ],
       ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: .center,
+      body: Column(
+        children: [
+          _AccessStatusCard(
+            granted: _notificationAccessGranted,
+            checking: _checkingAccess,
+            onOpenSettings: _openNotificationAccessSettings,
+          ),
+          if (_captureError case final error?)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Text(
+                error,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            ),
+          Expanded(
+            child: _notifications.isEmpty
+                ? const _EmptyNotificationList()
+                : ListView.separated(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    itemCount: _notifications.length,
+                    separatorBuilder: (_, _) => const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      return _NotificationListItem(
+                        notification: _notifications[index],
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AccessStatusCard extends StatelessWidget {
+  const _AccessStatusCard({
+    required this.granted,
+    required this.checking,
+    required this.onOpenSettings,
+  });
+
+  final bool granted;
+  final bool checking;
+  final VoidCallback onOpenSettings;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final isReady = granted && !checking;
+
+    return Card(
+      margin: const EdgeInsets.all(16),
+      color: isReady
+          ? colors.secondaryContainer
+          : colors.surfaceContainerHighest,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('You have pushed the button this many times:'),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
+            Icon(
+              isReady ? Icons.notifications_active : Icons.notifications_off,
+              color: isReady
+                  ? colors.onSecondaryContainer
+                  : colors.onSurfaceVariant,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    checking
+                        ? 'Checking notification access…'
+                        : granted
+                        ? 'Notification access is enabled'
+                        : 'Notification access is not enabled',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    granted
+                        ? 'New phone notifications will appear below while Sensa is running.'
+                        : 'Enable access so Sensa can receive new Android notifications.',
+                  ),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: onOpenSettings,
+                    icon: const Icon(Icons.settings),
+                    label: Text(
+                      granted
+                          ? 'Open notification settings'
+                          : 'Enable notification access',
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
+    );
+  }
+}
+
+class _EmptyNotificationList extends StatelessWidget {
+  const _EmptyNotificationList();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      child: Padding(
+        padding: EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.inbox_outlined, size: 48),
+            SizedBox(height: 12),
+            Text(
+              'No new notifications yet',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+            ),
+            SizedBox(height: 6),
+            Text(
+              'After access is enabled, send a notification from another app to see it here.',
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
   }
+}
+
+class _NotificationListItem extends StatelessWidget {
+  const _NotificationListItem({required this.notification});
+
+  final CapturedNotification notification;
+
+  @override
+  Widget build(BuildContext context) {
+    final title = notification.title.isEmpty ? 'No title' : notification.title;
+    final content = notification.content.isEmpty
+        ? 'No content'
+        : notification.content;
+
+    return ListTile(
+      leading: const CircleAvatar(child: Icon(Icons.notifications)),
+      title: Text(
+        notification.appName.isEmpty
+            ? notification.packageName
+            : notification.appName,
+      ),
+      subtitle: Text(
+        '$title\n$content',
+        maxLines: 3,
+        overflow: TextOverflow.ellipsis,
+      ),
+      isThreeLine: true,
+      trailing: Text(
+        _formatTimestamp(notification.timestamp),
+        textAlign: TextAlign.end,
+        style: Theme.of(context).textTheme.labelSmall,
+      ),
+    );
+  }
+
+  String _formatTimestamp(DateTime timestamp) {
+    final localTime = timestamp.toLocal();
+    return '${_twoDigits(localTime.hour)}:${_twoDigits(localTime.minute)}\n'
+        '${_twoDigits(localTime.day)}/${_twoDigits(localTime.month)}';
+  }
+
+  String _twoDigits(int value) => value.toString().padLeft(2, '0');
 }
