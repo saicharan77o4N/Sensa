@@ -43,6 +43,9 @@ class _NotificationInboxPageState extends State<NotificationInboxPage>
 
   bool _isSearching = false;
   String? _queryAnswer;
+  bool _isFocusMode = false;
+  DateTime? _focusEndsAt;
+  Timer? _focusTimer;
 
   List<CapturedNotification> _searchResults = [];
   final SpeechToText _speechToText = SpeechToText();
@@ -140,9 +143,30 @@ class _NotificationInboxPageState extends State<NotificationInboxPage>
         return;
       }
 
+      if (_isFocusMode &&
+          (scoredNotification.importanceScore ?? 0.0) < 0.08) {
+        debugPrint(
+          'SENSA FOCUS | Quiet notification: '
+          '${scoredNotification.appName} - '
+          '${scoredNotification.title}',
+        );
+
+        setState(() {
+          _notifications.add(scoredNotification);
+          _notifications.sort(
+            (a, b) => b.timestamp.compareTo(a.timestamp),
+          );
+          _captureError = null;
+        });
+
+        return;
+      }
+
       setState(() {
         _notifications.add(scoredNotification);
-        _notifications.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+        _notifications.sort(
+          (a, b) => b.timestamp.compareTo(a.timestamp),
+        );
         _captureError = null;
       });
 
@@ -163,10 +187,12 @@ class _NotificationInboxPageState extends State<NotificationInboxPage>
     }
   }
 
-  Map<String, List<CapturedNotification>> _groupNotificationsByApp() {
+  Map<String, List<CapturedNotification>> _groupNotificationsByApp(
+  List<CapturedNotification> notifications,
+  ) {
     final groups = <String, List<CapturedNotification>>{};
 
-    for (final notification in _notifications) {
+    for (final notification in notifications) {
       final appName = notification.appName.isEmpty
           ? notification.packageName
           : notification.appName;
@@ -226,8 +252,12 @@ class _NotificationInboxPageState extends State<NotificationInboxPage>
     }
 
     if (result.finalResult && recognizedText.trim().isNotEmpty) {
+    _handleVoiceCommand(recognizedText);
+
+    if (!recognizedText.toLowerCase().contains('focus')) {
       _searchNotifications();
     }
+}
   },
   listenOptions: SpeechListenOptions(
     partialResults: true,
@@ -245,6 +275,78 @@ Future<void> _stopListening() async {
     });
   }
 }
+void _startFocusMode(Duration duration) {
+  _focusTimer?.cancel();
+
+  final endsAt = DateTime.now().add(duration);
+
+  setState(() {
+    _isFocusMode = true;
+    _focusEndsAt = endsAt;
+  });
+
+  _focusTimer = Timer(
+    duration,
+    _stopFocusMode,
+  );
+
+  debugPrint(
+    'SENSA FOCUS | Started for ${duration.inMinutes} minutes',
+  );
+}
+
+void _stopFocusMode() {
+  _focusTimer?.cancel();
+  _focusTimer = null;
+
+  if (!mounted) {
+    return;
+  }
+
+  setState(() {
+    _isFocusMode = false;
+    _focusEndsAt = null;
+  });
+
+  debugPrint('SENSA FOCUS | Stopped');
+}
+void _handleVoiceCommand(String command) {
+  final normalized = command.trim().toLowerCase();
+
+  if (normalized.contains('focus')) {
+    final minuteMatch = RegExp(
+      r'(\d+)\s*(minute|minutes|min|mins)',
+    ).firstMatch(normalized);
+
+    final hourMatch = RegExp(
+      r'(\d+)\s*(hour|hours|hr|hrs)',
+    ).firstMatch(normalized);
+
+    if (hourMatch != null) {
+      final hours = int.parse(hourMatch.group(1)!);
+
+      _startFocusMode(
+        Duration(hours: hours),
+      );
+
+      return;
+    }
+
+    if (minuteMatch != null) {
+      final minutes = int.parse(minuteMatch.group(1)!);
+
+      _startFocusMode(
+        Duration(minutes: minutes),
+      );
+
+      return;
+    }
+
+    debugPrint(
+      'SENSA FOCUS | Could not understand duration',
+    );
+  }
+}
 Future<void> _speakAnswer(String answer) async {
   if (answer.trim().isEmpty) {
     return;
@@ -258,12 +360,36 @@ Future<void> _speakAnswer(String answer) async {
 
   await _flutterTts.speak(answer);
 }
+List<CapturedNotification> get _visibleNotifications {
+  if (!_isFocusMode) {
+    return _notifications;
+  }
+
+  return _notifications.where((notification) {
+    final score = notification.importanceScore ?? 0.0;
+
+    return score >= 0.08;
+  }).toList();
+}
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Sensa'),
         actions: [
+          IconButton(
+            onPressed: _isFocusMode
+                ? _stopFocusMode
+                : () => _startFocusMode(const Duration(minutes: 30)),
+            icon: Icon(
+              _isFocusMode
+                  ? Icons.notifications_active
+                  : Icons.do_not_disturb_on_outlined,
+            ),
+            tooltip: _isFocusMode
+                ? 'Turn off Focus Mode'
+                : 'Focus for 30 minutes',
+          ),
           IconButton(
             onPressed: _refreshNotificationAccess,
             icon: const Icon(Icons.refresh),
@@ -273,6 +399,27 @@ Future<void> _speakAnswer(String answer) async {
       ),
       body: Column(
         children: [
+          if (_isFocusMode)
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(),
+              ),
+              child: Text(
+                _focusEndsAt == null
+                    ? 'Focus Mode is active'
+                    : 'Focus Mode active until '
+                        '${_focusEndsAt!.hour.toString().padLeft(2, '0')}:'
+                        '${_focusEndsAt!.minute.toString().padLeft(2, '0')}',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+
           _AccessStatusCard(
             granted: _notificationAccessGranted,
             checking: _checkingAccess,
@@ -366,10 +513,12 @@ Future<void> _speakAnswer(String answer) async {
                 ),
           ],
         )
-      : (_notifications.isEmpty
+      : (_visibleNotifications.isEmpty
           ? const _EmptyNotificationList()
           : _GroupedNotificationList(
-              groups: _groupNotificationsByApp(),
+              groups: _groupNotificationsByApp(
+                _visibleNotifications,
+              ),
             )),
             ),
         ],
@@ -417,6 +566,18 @@ Future<void> _speakAnswer(String answer) async {
   Future<void> _loadSavedNotifications() async {
     try {
       final savedNotifications = await _database.getNotifications();
+      debugPrint(
+        'SENSA DATABASE | Loaded ${savedNotifications.length} notifications',
+      );
+
+      for (final notification in savedNotifications) {
+        debugPrint(
+          'SENSA DATABASE | '
+          '${notification.appName} | '
+          '${notification.title} | '
+          'score=${notification.importanceScore}',
+        );
+      }
 
       if (!mounted) {
         return;

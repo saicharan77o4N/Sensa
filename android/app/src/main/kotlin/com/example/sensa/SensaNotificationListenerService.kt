@@ -20,7 +20,7 @@ class SensaNotificationListenerService : NotificationListenerService() {
         val content = notificationContent(notification)
 
         val capturedNotification = mapOf(
-            "id" to statusBarNotification.key,
+            "id" to "${statusBarNotification.packageName}_${statusBarNotification.postTime}_${statusBarNotification.id}",
             "packageName" to packageName,
             "appName" to applicationNameFor(packageName),
             "title" to title,
