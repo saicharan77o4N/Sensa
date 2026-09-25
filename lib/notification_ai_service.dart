@@ -492,8 +492,12 @@ Future<NotificationQueryResult> answerQuery(
         notifications,
       );
 
-      final matchingNotifications =
-          results.map((entry) => entry.key).toList();
+      const minimumSimilarity = 0.35;
+
+      final matchingNotifications = results
+          .where((entry) => entry.value >= minimumSimilarity)
+          .map((entry) => entry.key)
+          .toList();
 
       return NotificationQueryResult(
         intent: intent,

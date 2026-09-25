@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:speech_to_text/speech_to_text.dart';
 import 'package:flutter/material.dart';
-
+import 'package:flutter_tts/flutter_tts.dart';
 import 'captured_notification.dart';
 import 'notification_ai_service.dart';
 import 'notification_capture_service.dart';
@@ -46,7 +46,7 @@ class _NotificationInboxPageState extends State<NotificationInboxPage>
 
   List<CapturedNotification> _searchResults = [];
   final SpeechToText _speechToText = SpeechToText();
-
+  final FlutterTts _flutterTts = FlutterTts();
   bool _isListening = false;
   StreamSubscription<CapturedNotification>? _notificationSubscription;
 
@@ -210,20 +210,31 @@ class _NotificationInboxPageState extends State<NotificationInboxPage>
   });
 
   await _speechToText.listen(
-    onResult: (result) {
-      final recognizedText = result.recognizedWords;
+  onResult: (result) {
+    final recognizedText = result.recognizedWords;
 
-      debugPrint(
-        'SENSA SPEECH RESULT | "$recognizedText"',
-      );
+    debugPrint(
+      'SENSA SPEECH RESULT | '
+      '"$recognizedText" | '
+      'final: ${result.finalResult}',
+    );
 
-      _searchController.text = recognizedText;
+    if (mounted) {
+      setState(() {
+        _searchController.text = recognizedText;
+      });
+    }
 
-      if (result.finalResult) {
-        _searchNotifications();
-      }
-    },
-  );
+    if (result.finalResult && recognizedText.trim().isNotEmpty) {
+      _searchNotifications();
+    }
+  },
+  listenOptions: SpeechListenOptions(
+    partialResults: true,
+    cancelOnError: false,
+    listenMode: ListenMode.search,
+  ),
+);
 }
 Future<void> _stopListening() async {
   await _speechToText.stop();
@@ -233,6 +244,19 @@ Future<void> _stopListening() async {
       _isListening = false;
     });
   }
+}
+Future<void> _speakAnswer(String answer) async {
+  if (answer.trim().isEmpty) {
+    return;
+  }
+
+  await _flutterTts.stop();
+
+  await _flutterTts.setLanguage('en-US');
+  await _flutterTts.setSpeechRate(0.5);
+  await _flutterTts.setPitch(1.0);
+
+  await _flutterTts.speak(answer);
 }
   @override
   Widget build(BuildContext context) {
@@ -443,9 +467,11 @@ Future<void> _stopListening() async {
     }
 
     setState(() {
-      _queryAnswer = result.answer;
+    _queryAnswer = result.answer;
       _searchResults = result.notifications;
     });
+
+await _speakAnswer(result.answer);
 
     debugPrint(
       'SENSA QUERY ANSWER | '
