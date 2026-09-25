@@ -46,6 +46,7 @@ class _NotificationInboxPageState extends State<NotificationInboxPage>
   bool _isFocusMode = false;
   DateTime? _focusEndsAt;
   Timer? _focusTimer;
+  Timer? _relativeTimeTimer;
 
   List<CapturedNotification> _searchResults = [];
   final SpeechToText _speechToText = SpeechToText();
@@ -58,23 +59,36 @@ class _NotificationInboxPageState extends State<NotificationInboxPage>
   String? _captureError;
 
   @override
-  void initState() {
-    super.initState();
-    NotificationAiService.instance.initialize();
-    WidgetsBinding.instance.addObserver(this);
-    _notificationSubscription = _captureService.notifications.listen(
-      _addNotification,
-      onError: (Object error) {
-        if (mounted) {
-          setState(
-            () => _captureError = 'Unable to receive notifications: $error',
-          );
-        }
-      },
-    );
-    _refreshNotificationAccess();
-    _loadSavedNotifications();
-  }
+void initState() {
+  super.initState();
+
+  NotificationAiService.instance.initialize();
+
+  WidgetsBinding.instance.addObserver(this);
+
+  _notificationSubscription = _captureService.notifications.listen(
+    _addNotification,
+    onError: (Object error) {
+      if (mounted) {
+        setState(
+          () => _captureError = 'Unable to receive notifications: $error',
+        );
+      }
+    },
+  );
+
+  _refreshNotificationAccess();
+  _loadSavedNotifications();
+
+  _relativeTimeTimer = Timer.periodic(
+    const Duration(minutes: 1),
+    (_) {
+      if (mounted) {
+        setState(() {});
+      }
+    },
+  );
+}
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
@@ -83,10 +97,18 @@ class _NotificationInboxPageState extends State<NotificationInboxPage>
     }
   }
 
-  @override
+ @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+
     _notificationSubscription?.cancel();
+
+    _relativeTimeTimer?.cancel();
+    _focusTimer?.cancel();
+
+    _searchController.dispose();
+    _flutterTts.stop();
+
     super.dispose();
   }
 
@@ -120,47 +142,59 @@ class _NotificationInboxPageState extends State<NotificationInboxPage>
   }
 
   Future<void> _addNotification(CapturedNotification notification) async {
-    try {
-      final notificationText = '${notification.title} ${notification.content}'
-          .trim();
+  try {
+    final notificationText =
+        '${notification.title} ${notification.content}'.trim();
 
-      final importanceScore = await NotificationAiService.instance
-          .calculateImportanceScore(notificationText);
+    final importanceScore = await NotificationAiService.instance
+        .calculateImportanceScore(notificationText);
 
-      final scoredNotification = CapturedNotification(
-        id: notification.id,
-        packageName: notification.packageName,
-        appName: notification.appName,
-        title: notification.title,
-        content: notification.content,
-        timestamp: notification.timestamp,
-        importanceScore: importanceScore,
+    final scoredNotification = CapturedNotification(
+      id: notification.id,
+      notificationKey: notification.notificationKey,
+      packageName: notification.packageName,
+      appName: notification.appName,
+      title: notification.title,
+      content: notification.content,
+      timestamp: notification.timestamp,
+      importanceScore: importanceScore,
+    );
+
+    await _database.insertNotification(scoredNotification);
+
+    if (!mounted) {
+      return;
+    }
+
+    final existingIndex = _notifications.indexWhere(
+      (item) => item.id == scoredNotification.id,
+    );
+
+    if (existingIndex >= 0) {
+      setState(() {
+        _notifications[existingIndex] = scoredNotification;
+        _notifications.sort(
+          (a, b) => b.timestamp.compareTo(a.timestamp),
+        );
+        _captureError = null;
+      });
+
+      debugPrint(
+        'SENSA UPDATE | '
+        '${scoredNotification.appName} - '
+        '${scoredNotification.title}',
       );
 
-      await _database.insertNotification(scoredNotification);
+      return;
+    }
 
-      if (!mounted) {
-        return;
-      }
-
-      if (_isFocusMode &&
-          (scoredNotification.importanceScore ?? 0.0) < 0.08) {
-        debugPrint(
-          'SENSA FOCUS | Quiet notification: '
-          '${scoredNotification.appName} - '
-          '${scoredNotification.title}',
-        );
-
-        setState(() {
-          _notifications.add(scoredNotification);
-          _notifications.sort(
-            (a, b) => b.timestamp.compareTo(a.timestamp),
-          );
-          _captureError = null;
-        });
-
-        return;
-      }
+    if (_isFocusMode &&
+        (scoredNotification.importanceScore ?? 0.0) < 0.08) {
+      debugPrint(
+        'SENSA FOCUS | Quiet notification: '
+        '${scoredNotification.appName} - '
+        '${scoredNotification.title}',
+      );
 
       setState(() {
         _notifications.add(scoredNotification);
@@ -170,22 +204,33 @@ class _NotificationInboxPageState extends State<NotificationInboxPage>
         _captureError = null;
       });
 
-      debugPrint(
-        'SENSA SCORE | '
-        '${scoredNotification.importanceScore} | '
-        '${scoredNotification.title}',
-      );
-    } catch (error, stackTrace) {
-      debugPrint('Notification AI scoring failed: $error');
-      debugPrint('$stackTrace');
+      return;
+    }
 
-      if (mounted) {
-        setState(() {
-          _captureError = 'Unable to process notification: $error';
-        });
-      }
+    setState(() {
+      _notifications.add(scoredNotification);
+      _notifications.sort(
+        (a, b) => b.timestamp.compareTo(a.timestamp),
+      );
+      _captureError = null;
+    });
+
+    debugPrint(
+      'SENSA SCORE | '
+      '${scoredNotification.importanceScore} | '
+      '${scoredNotification.title}',
+    );
+  } catch (error, stackTrace) {
+    debugPrint('Notification AI scoring failed: $error');
+    debugPrint('$stackTrace');
+
+    if (mounted) {
+      setState(() {
+        _captureError = 'Unable to process notification: $error';
+      });
     }
   }
+}
 
   Map<String, List<CapturedNotification>> _groupNotificationsByApp(
   List<CapturedNotification> notifications,
@@ -820,9 +865,11 @@ class _AppSectionHeader extends StatelessWidget {
 }
 
 class _NotificationListItem extends StatelessWidget {
-  const _NotificationListItem({required this.notification});
+  _NotificationListItem({required this.notification});
 
   final CapturedNotification notification;
+  final NotificationCaptureService _captureService =
+    NotificationCaptureService();
   String _importanceLabel() {
     final score = notification.importanceScore;
 
@@ -849,6 +896,17 @@ class _NotificationListItem extends StatelessWidget {
         : notification.content;
 
     return ListTile(
+      onTap: () async {
+        try {
+          await _captureService.openNotificationApp(
+            notification.packageName,
+          );
+        } catch (error) {
+          debugPrint(
+            'SENSA ACTION | Failed to open app: $error',
+          );
+        }
+      },
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       leading: const CircleAvatar(child: Icon(Icons.notifications)),
       title: Row(

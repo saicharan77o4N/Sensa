@@ -31,4 +31,12 @@ class NotificationCaptureService {
       'openNotificationAccessSettings',
     );
   }
+  Future<void> openNotificationApp(String packageName) {
+    return _notificationAccess.invokeMethod<void>(
+      'openNotificationApp',
+      <String, dynamic>{
+        'packageName': packageName,
+      },
+    );
+  }
 }

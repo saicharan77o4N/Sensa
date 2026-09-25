@@ -35,6 +35,33 @@ class MainActivity : FlutterActivity() {
                     startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
                     result.success(null)
                 }
+                "openNotificationApp" -> {
+                    val packageName = call.argument<String>("packageName")
+
+                    if (packageName.isNullOrBlank()) {
+                        result.error(
+                            "INVALID_PACKAGE",
+                            "Package name is missing.",
+                            null,
+                        )
+                        return@setMethodCallHandler
+                    }
+
+                    val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
+
+                    if (launchIntent == null) {
+                        result.error(
+                            "APP_NOT_FOUND",
+                            "Could not find a launchable app for $packageName.",
+                            null,
+                        )
+                        return@setMethodCallHandler
+                    }
+
+                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    startActivity(launchIntent)
+                    result.success(null)
+                }
                 else -> result.notImplemented()
             }
         }
