@@ -10,7 +10,7 @@ class NotificationDatabase {
   static final NotificationDatabase instance = NotificationDatabase._();
 
   static const _databaseName = 'sensa.db';
-  static const _databaseVersion = 3;
+  static const _databaseVersion = 4;
   static const _tableName = 'notifications';
 
   Database? _database;
@@ -42,7 +42,8 @@ class NotificationDatabase {
             content TEXT NOT NULL,
             timestamp TEXT NOT NULL,
             created_at TEXT NOT NULL,
-            importance_score REAL
+            importance_score REAL,
+            category TEXT
           )
         ''');
       },
@@ -56,6 +57,11 @@ class NotificationDatabase {
         if (oldVersion < 3) {
           await database.execute(
             'ALTER TABLE $_tableName ADD COLUMN notification_key TEXT NOT NULL DEFAULT \'\'',
+          );
+        }
+        if (oldVersion < 4) {
+          await database.execute(
+            'ALTER TABLE $_tableName ADD COLUMN category TEXT',
           );
         }
       },
@@ -86,6 +92,7 @@ class NotificationDatabase {
         'content': notification.content,
         'timestamp': notification.timestamp.toUtc().toIso8601String(),
         'importance_score': notification.importanceScore,
+        'category': notification.category,
       },
       where: 'id = ?',
       whereArgs: [notification.id],
@@ -110,6 +117,7 @@ class NotificationDatabase {
       'timestamp': notification.timestamp.toUtc().toIso8601String(),
       'created_at': DateTime.now().toUtc().toIso8601String(),
       'importance_score': notification.importanceScore,
+      'category': notification.category,
     },
     conflictAlgorithm: ConflictAlgorithm.ignore,
   );

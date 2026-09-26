@@ -56,9 +56,19 @@ class NotificationAiService {
     'social media entertainment',
     'spam or unwanted notification',
   ];
+  final Map<String, String> _categoryConcepts = {
+  'Finance': 'bank payment transaction money account debit credit bill',
+  'Security': 'security alert OTP verification login password authentication',
+  'Work': 'work office meeting project colleague professional task',
+  'Education': 'college university class exam assignment course study learning',
+  'Social': 'friend family personal message chat social communication',
+  'Shopping': 'shopping order delivery purchase product sale discount',
+  'Entertainment': 'movie music video game entertainment streaming',
+  };
 
   List<List<double>>? _importantConceptEmbeddings;
   List<List<double>>? _distractionEmbeddings;
+  Map<String, List<double>>? _categoryEmbeddings;
 
   Future<void> initialize() {
   if (_onnxSession != null && _tokenizer != null) {
@@ -134,6 +144,67 @@ Future<void> _initialize() async {
       'Sensa importance concepts initialized.',
     );
   }
+
+  Future<void> _initializeCategoryEmbeddings() async {
+  if (_categoryEmbeddings != null) {
+    return;
+  }
+
+  _categoryEmbeddings = {};
+
+  for (final entry in _categoryConcepts.entries) {
+    _categoryEmbeddings![entry.key] =
+        await getEmbedding(entry.value);
+  }
+
+  debugPrint(
+    'SENSA AI | Category concepts initialized.',
+  );
+  }
+
+  Future<String> classifyCategory(String text) async {
+    final normalizedText = text.trim();
+
+    if (normalizedText.isEmpty) {
+      debugPrint(
+        'SENSA AI | Category: Other | empty notification text',
+      );
+      return 'Other';
+    }
+
+    await _initializeCategoryEmbeddings();
+
+    final notificationEmbedding = await getEmbedding(normalizedText);
+
+    String bestCategory = 'Other';
+    double bestSimilarity = -1;
+
+    for (final entry in _categoryEmbeddings!.entries) {
+      final similarity = cosineSimilarity(
+        notificationEmbedding,
+        entry.value,
+      );
+
+      if (similarity > bestSimilarity) {
+        bestSimilarity = similarity;
+        bestCategory = entry.key;
+      }
+    }
+
+    const minimumCategorySimilarity = 0.20;
+
+    if (bestSimilarity < minimumCategorySimilarity) {
+      bestCategory = 'Other';
+    }
+
+    debugPrint(
+      'SENSA AI | Category: $bestCategory '
+      '| similarity: $bestSimilarity',
+    );
+
+    return bestCategory;
+  }
+
   Future<List<double>> getEmbedding(
     String text,
   ) async {
@@ -176,6 +247,80 @@ Future<void> _initialize() async {
 
     return embedding.cast<double>();
   }
+
+  Future<Map<String, dynamic>> analyzeNotification(String text) async {
+    final normalizedText = text.trim();
+
+    if (normalizedText.isEmpty) {
+      return {
+        'importanceScore': await calculateImportanceScore(''),
+        'category': 'Other',
+      };
+    }
+
+    await _initializeConceptEmbeddings();
+    await _initializeCategoryEmbeddings();
+
+    final notificationEmbedding = await getEmbedding(normalizedText);
+
+    double importantScore = 0;
+
+    for (final conceptEmbedding in _importantConceptEmbeddings!) {
+      importantScore += cosineSimilarity(
+        notificationEmbedding,
+        conceptEmbedding,
+      );
+    }
+
+    importantScore /= _importantConceptEmbeddings!.length;
+
+    double distractionScore = 0;
+
+    for (final conceptEmbedding in _distractionEmbeddings!) {
+      distractionScore += cosineSimilarity(
+        notificationEmbedding,
+        conceptEmbedding,
+      );
+    }
+
+    distractionScore /= _distractionEmbeddings!.length;
+
+    final importanceScore = importantScore - distractionScore;
+
+    String bestCategory = 'Other';
+    double bestSimilarity = -1;
+
+    for (final entry in _categoryEmbeddings!.entries) {
+      final similarity = cosineSimilarity(
+        notificationEmbedding,
+        entry.value,
+      );
+
+      if (similarity > bestSimilarity) {
+        bestSimilarity = similarity;
+        bestCategory = entry.key;
+      }
+    }
+
+    const minimumCategorySimilarity = 0.20;
+
+    if (bestSimilarity < minimumCategorySimilarity) {
+      bestCategory = 'Other';
+    }
+
+    debugPrint(
+      'SENSA AI | Combined analysis | '
+      'importance: $importanceScore | '
+      'category: $bestCategory | '
+      'category similarity: $bestSimilarity',
+    );
+
+    return {
+      'importanceScore': importanceScore,
+      'category': bestCategory,
+    };
+  }
+
     Future<double> calculateImportanceScore(String text) async {
     await _initializeConceptEmbeddings();
 

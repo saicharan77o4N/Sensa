@@ -142,59 +142,79 @@ void initState() {
   }
 
   Future<void> _addNotification(CapturedNotification notification) async {
-  try {
-    final notificationText =
-        '${notification.title} ${notification.content}'.trim();
+    try {
+      final notificationText =
+          '${notification.title} ${notification.content}'.trim();
 
-    final importanceScore = await NotificationAiService.instance
-        .calculateImportanceScore(notificationText);
+      final aiService = NotificationAiService.instance;
 
-    final scoredNotification = CapturedNotification(
-      id: notification.id,
-      notificationKey: notification.notificationKey,
-      packageName: notification.packageName,
-      appName: notification.appName,
-      title: notification.title,
-      content: notification.content,
-      timestamp: notification.timestamp,
-      importanceScore: importanceScore,
-    );
+      final analysis =
+          await aiService.analyzeNotification(notificationText);
 
-    await _database.insertNotification(scoredNotification);
+      final importanceScore =
+          analysis['importanceScore'] as double;
 
-    if (!mounted) {
-      return;
-    }
+      final category =
+          analysis['category'] as String;
 
-    final existingIndex = _notifications.indexWhere(
-      (item) => item.id == scoredNotification.id,
-    );
+      final scoredNotification = CapturedNotification(
+        id: notification.id,
+        notificationKey: notification.notificationKey,
+        packageName: notification.packageName,
+        appName: notification.appName,
+        title: notification.title,
+        content: notification.content,
+        timestamp: notification.timestamp,
+        importanceScore: importanceScore,
+        category: category,
+      );
 
-    if (existingIndex >= 0) {
-      setState(() {
-        _notifications[existingIndex] = scoredNotification;
-        _notifications.sort(
-          (a, b) => b.timestamp.compareTo(a.timestamp),
+      await _database.insertNotification(scoredNotification);
+
+      if (!mounted) {
+        return;
+      }
+
+      final existingIndex = _notifications.indexWhere(
+        (item) => item.id == scoredNotification.id,
+      );
+
+      if (existingIndex >= 0) {
+        setState(() {
+          _notifications[existingIndex] = scoredNotification;
+          _notifications.sort(
+            (a, b) => b.timestamp.compareTo(a.timestamp),
+          );
+          _captureError = null;
+        });
+
+        debugPrint(
+          'SENSA UPDATE | '
+          '${scoredNotification.appName} - '
+          '${scoredNotification.title}',
         );
-        _captureError = null;
-      });
 
-      debugPrint(
-        'SENSA UPDATE | '
-        '${scoredNotification.appName} - '
-        '${scoredNotification.title}',
-      );
+        return;
+      }
 
-      return;
-    }
+      if (_isFocusMode &&
+          (scoredNotification.importanceScore ?? 0.0) < 0.08) {
+        debugPrint(
+          'SENSA FOCUS | Quiet notification: '
+          '${scoredNotification.appName} - '
+          '${scoredNotification.title}',
+        );
 
-    if (_isFocusMode &&
-        (scoredNotification.importanceScore ?? 0.0) < 0.08) {
-      debugPrint(
-        'SENSA FOCUS | Quiet notification: '
-        '${scoredNotification.appName} - '
-        '${scoredNotification.title}',
-      );
+        setState(() {
+          _notifications.add(scoredNotification);
+          _notifications.sort(
+            (a, b) => b.timestamp.compareTo(a.timestamp),
+          );
+          _captureError = null;
+        });
+
+        return;
+      }
 
       setState(() {
         _notifications.add(scoredNotification);
@@ -204,33 +224,28 @@ void initState() {
         _captureError = null;
       });
 
-      return;
-    }
-
-    setState(() {
-      _notifications.add(scoredNotification);
-      _notifications.sort(
-        (a, b) => b.timestamp.compareTo(a.timestamp),
+      debugPrint(
+        'SENSA SCORE | '
+        '${scoredNotification.importanceScore} | '
+        '${scoredNotification.title}',
       );
-      _captureError = null;
-    });
 
-    debugPrint(
-      'SENSA SCORE | '
-      '${scoredNotification.importanceScore} | '
-      '${scoredNotification.title}',
-    );
-  } catch (error, stackTrace) {
-    debugPrint('Notification AI scoring failed: $error');
-    debugPrint('$stackTrace');
+      debugPrint(
+        'SENSA CATEGORY | '
+        '${scoredNotification.category} | '
+        '${scoredNotification.title}',
+      );
+    } catch (error, stackTrace) {
+      debugPrint('Notification AI scoring failed: $error');
+      debugPrint('$stackTrace');
 
-    if (mounted) {
-      setState(() {
-        _captureError = 'Unable to process notification: $error';
-      });
+      if (mounted) {
+        setState(() {
+          _captureError = 'Unable to process notification: $error';
+        });
+      }
     }
   }
-}
 
   Map<String, List<CapturedNotification>> _groupNotificationsByApp(
   List<CapturedNotification> notifications,
@@ -610,6 +625,28 @@ List<CapturedNotification> get _visibleNotifications {
     }
   }
   
+  Future<void> _testNotificationCategories() async {
+  final aiService = NotificationAiService.instance;
+
+  final testNotifications = [
+    'Your bank account was debited 500 rupees',
+    'Your OTP for login is 123456',
+    'Your college exam is tomorrow',
+    'Your project meeting is scheduled for 10 AM',
+    'Your order has been shipped',
+    'Your friend sent you a message',
+    'New movie available to watch',
+  ];
+
+  for (final notification in testNotifications) {
+    final category = await aiService.classifyCategory(notification);
+
+    debugPrint(
+      'SENSA CATEGORY TEST | '
+      '$notification → $category',
+    );
+  }
+  }
 
   Future<void> _loadSavedNotifications() async {
     try {
