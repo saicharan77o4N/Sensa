@@ -47,20 +47,45 @@ class MainActivity : FlutterActivity() {
                         return@setMethodCallHandler
                     }
 
-                    val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
+                    val intent = packageManager.getLaunchIntentForPackage(packageName)
+                        ?: Intent(Intent.ACTION_MAIN).apply {
+                            addCategory(Intent.CATEGORY_LAUNCHER)
+                            setPackage(packageName)
+                        }
 
-                    if (launchIntent == null) {
+                    val resolvedIntent = packageManager.resolveActivity(
+                        intent,
+                        0,
+                    )
+
+                    if (resolvedIntent == null) {
                         result.error(
                             "APP_NOT_FOUND",
-                            "Could not find a launchable app for $packageName.",
+                            "Could not resolve a launchable activity for $packageName.",
                             null,
                         )
                         return@setMethodCallHandler
                     }
 
-                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    startActivity(launchIntent)
-                    result.success(null)
+                    intent.component = resolvedIntent.activityInfo?.let {
+                        ComponentName(
+                            it.packageName,
+                            it.name,
+                        )
+                    }
+
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+
+                    try {
+                        startActivity(intent)
+                        result.success(null)
+                    } catch (error: Exception) {
+                        result.error(
+                            "APP_LAUNCH_FAILED",
+                            "Could not launch $packageName: ${error.message}",
+                            null,
+                        )
+                    }
                 }
                 else -> result.notImplemented()
             }

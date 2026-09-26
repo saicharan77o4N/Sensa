@@ -868,8 +868,10 @@ class _NotificationListItem extends StatelessWidget {
   _NotificationListItem({required this.notification});
 
   final CapturedNotification notification;
+
   final NotificationCaptureService _captureService =
-    NotificationCaptureService();
+      NotificationCaptureService();
+
   String _importanceLabel() {
     final score = notification.importanceScore;
 
@@ -888,27 +890,191 @@ class _NotificationListItem extends StatelessWidget {
     return 'LOW';
   }
 
+  String _importanceExplanation() {
+    final label = _importanceLabel();
+
+    switch (label) {
+      case 'HIGH':
+        return 'Sensa classified this notification as high importance based on its semantic relevance.';
+
+      case 'MEDIUM':
+        return 'Sensa classified this notification as medium importance based on its semantic relevance.';
+
+      case 'LOW':
+        return 'Sensa classified this notification as low importance based on its semantic relevance.';
+
+      default:
+        return 'Sensa has not ranked this notification yet.';
+    }
+  }
+
+  Future<void> _openSourceApp(BuildContext context) async {
+    Navigator.of(context).pop();
+
+    try {
+      await _captureService.openNotificationApp(
+        notification.packageName,
+      );
+    } catch (error) {
+      debugPrint(
+        'SENSA ACTION | Failed to open app: $error',
+      );
+    }
+  }
+
+  void _showDetails(BuildContext context) {
+    final title = notification.title.isEmpty
+        ? 'No title'
+        : notification.title;
+
+    final content = notification.content.isEmpty
+        ? 'No content'
+        : notification.content;
+
+    final appName = notification.appName.isEmpty
+        ? notification.packageName
+        : notification.appName;
+
+    final importance = _importanceLabel();
+
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    CircleAvatar(
+                      child: const Icon(Icons.notifications),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Sensa Analysis',
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleLarge
+                            ?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 20),
+
+                Text(
+                  appName,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+
+                const SizedBox(height: 6),
+
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+
+                const SizedBox(height: 8),
+
+                Text(
+                  content,
+                  style: Theme.of(context).textTheme.bodyLarge,
+                ),
+
+                const SizedBox(height: 20),
+
+                Text(
+                  'Importance',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+
+                const SizedBox(height: 8),
+
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context)
+                        .colorScheme
+                        .surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.auto_awesome, size: 18),
+                      const SizedBox(width: 8),
+                      Text(
+                        importance,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+
+                Text(
+                  _importanceExplanation(),
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+
+                const SizedBox(height: 24),
+
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: () => _openSourceApp(context),
+                    icon: const Icon(Icons.open_in_new),
+                    label: Text('Open $appName'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final title = notification.title.isEmpty ? 'No title' : notification.title;
+    final title = notification.title.isEmpty
+        ? 'No title'
+        : notification.title;
+
     final content = notification.content.isEmpty
         ? 'No content'
         : notification.content;
 
     return ListTile(
-      onTap: () async {
-        try {
-          await _captureService.openNotificationApp(
-            notification.packageName,
-          );
-        } catch (error) {
-          debugPrint(
-            'SENSA ACTION | Failed to open app: $error',
-          );
-        }
-      },
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      leading: const CircleAvatar(child: Icon(Icons.notifications)),
+      onTap: () => _showDetails(context),
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: 16,
+        vertical: 8,
+      ),
+      leading: const CircleAvatar(
+        child: Icon(Icons.notifications),
+      ),
       title: Row(
         children: [
           Expanded(
@@ -916,7 +1082,9 @@ class _NotificationListItem extends StatelessWidget {
               notification.appName.isEmpty
                   ? notification.packageName
                   : notification.appName,
-              style: const TextStyle(fontWeight: FontWeight.w600),
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+              ),
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -933,9 +1101,14 @@ class _NotificationListItem extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 8,
+                vertical: 4,
+              ),
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                color: Theme.of(context)
+                    .colorScheme
+                    .surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
@@ -946,12 +1119,18 @@ class _NotificationListItem extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               title,
-              style: const TextStyle(fontWeight: FontWeight.w500),
+              style: const TextStyle(
+                fontWeight: FontWeight.w500,
+              ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
             const SizedBox(height: 2),
-            Text(content, maxLines: 2, overflow: TextOverflow.ellipsis),
+            Text(
+              content,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
           ],
         ),
       ),
