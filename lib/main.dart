@@ -422,24 +422,27 @@ List<CapturedNotification> get _visibleNotifications {
       appBar: AppBar(
         title: const Text('Sensa'),
         actions: [
-          IconButton(
+          TextButton.icon(
             onPressed: _isFocusMode
                 ? _stopFocusMode
-                : () => _startFocusMode(const Duration(minutes: 30)),
+                : () => _startFocusMode(
+                      const Duration(minutes: 30),
+                    ),
             icon: Icon(
               _isFocusMode
                   ? Icons.notifications_active
                   : Icons.do_not_disturb_on_outlined,
             ),
-            tooltip: _isFocusMode
-                ? 'Turn off Focus Mode'
-                : 'Focus for 30 minutes',
+            label: Text(
+              _isFocusMode ? 'Focus ON' : 'Focus',
+            ),
           ),
           IconButton(
             onPressed: _refreshNotificationAccess,
             icon: const Icon(Icons.refresh),
             tooltip: 'Refresh notification access',
           ),
+          const SizedBox(width: 4),
         ],
       ),
       body: Column(
@@ -715,21 +718,59 @@ class _AccessStatusCard extends StatelessWidget {
     final colors = Theme.of(context).colorScheme;
     final isReady = granted && !checking;
 
+    if (isReady) {
+      return Container(
+        margin: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        padding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 10,
+        ),
+        decoration: BoxDecoration(
+          color: colors.secondaryContainer,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.notifications_active,
+              size: 20,
+              color: colors.onSecondaryContainer,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Notification access enabled',
+                style: TextStyle(
+                  color: colors.onSecondaryContainer,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            IconButton(
+              onPressed: onOpenSettings,
+              icon: Icon(
+                Icons.settings_outlined,
+                color: colors.onSecondaryContainer,
+              ),
+              tooltip: 'Notification settings',
+              visualDensity: VisualDensity.compact,
+            ),
+          ],
+        ),
+      );
+    }
+
     return Card(
       margin: const EdgeInsets.all(16),
-      color: isReady
-          ? colors.secondaryContainer
-          : colors.surfaceContainerHighest,
+      color: colors.surfaceContainerHighest,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Icon(
-              isReady ? Icons.notifications_active : Icons.notifications_off,
-              color: isReady
-                  ? colors.onSecondaryContainer
-                  : colors.onSurfaceVariant,
+              Icons.notifications_off,
+              color: colors.onSurfaceVariant,
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -739,25 +780,19 @@ class _AccessStatusCard extends StatelessWidget {
                   Text(
                     checking
                         ? 'Checking notification access…'
-                        : granted
-                        ? 'Notification access is enabled'
                         : 'Notification access is not enabled',
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    granted
-                        ? 'New phone notifications will appear below while Sensa is running.'
-                        : 'Enable access so Sensa can receive new Android notifications.',
+                  const Text(
+                    'Enable access so Sensa can receive new Android notifications.',
                   ),
                   const SizedBox(height: 12),
                   OutlinedButton.icon(
                     onPressed: onOpenSettings,
                     icon: const Icon(Icons.settings),
-                    label: Text(
-                      granted
-                          ? 'Open notification settings'
-                          : 'Enable notification access',
+                    label: const Text(
+                      'Enable notification access',
                     ),
                   ),
                 ],
@@ -923,6 +958,210 @@ class _NotificationListItem extends StatelessWidget {
   }
 
   void _showDetails(BuildContext context) {
+  final title = notification.title.isEmpty
+      ? 'No title'
+      : notification.title;
+
+  final content = notification.content.isEmpty
+      ? 'No content'
+      : notification.content;
+
+  final appName = notification.appName.isEmpty
+      ? notification.packageName
+      : notification.appName;
+
+  final importance = _importanceLabel();
+
+  showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    isScrollControlled: true,
+    backgroundColor: Theme.of(context).colorScheme.surface,
+    builder: (context) {
+      final colors = Theme.of(context).colorScheme;
+
+      return SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 22,
+                    backgroundColor: colors.primaryContainer,
+                    child: Icon(
+                      Icons.auto_awesome,
+                      color: colors.onPrimaryContainer,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Sensa Analysis',
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleLarge
+                              ?.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Semantic analysis',
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(
+                                color: colors.onSurfaceVariant,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 20),
+
+              // Source app
+              Row(
+                children: [
+                  Icon(
+                    Icons.apps_outlined,
+                    size: 18,
+                    color: colors.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    appName,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 12),
+
+              // Notification content
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: colors.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleMedium
+                          ?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      content,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: colors.onSurfaceVariant,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 18),
+
+              // AI importance
+              Text(
+                'AI importance',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+
+              const SizedBox(height: 8),
+
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: colors.primaryContainer,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.auto_awesome,
+                          size: 16,
+                          color: colors.onPrimaryContainer,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          importance,
+                          style: TextStyle(
+                            color: colors.onPrimaryContainer,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      _importanceExplanation(),
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(
+                            color: colors.onSurfaceVariant,
+                          ),
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 22),
+
+              // Source-app action
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () => _openSourceApp(context),
+                  icon: const Icon(Icons.open_in_new),
+                  label: Text('Open $appName'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
     final title = notification.title.isEmpty
         ? 'No title'
         : notification.title;
@@ -935,201 +1174,107 @@ class _NotificationListItem extends StatelessWidget {
         ? notification.packageName
         : notification.appName;
 
-    final importance = _importanceLabel();
+    return InkWell(
+      onTap: () => _showDetails(context),
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 14),
+        decoration: BoxDecoration(
+          color: colors.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: colors.outlineVariant,
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            CircleAvatar(
+              radius: 22,
+              backgroundColor: colors.primaryContainer,
+              child: Icon(
+                Icons.notifications,
+                color: colors.onPrimaryContainer,
+              ),
+            ),
 
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      isScrollControlled: true,
-      builder: (context) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    CircleAvatar(
-                      child: const Icon(Icons.notifications),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'Sensa Analysis',
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleLarge
-                            ?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
-                      ),
-                    ),
-                  ],
-                ),
+            const SizedBox(width: 12),
 
-                const SizedBox(height: 20),
-
-                Text(
-                  appName,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                ),
-
-                const SizedBox(height: 6),
-
-                Text(
-                  title,
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                ),
-
-                const SizedBox(height: 8),
-
-                Text(
-                  content,
-                  style: Theme.of(context).textTheme.bodyLarge,
-                ),
-
-                const SizedBox(height: 20),
-
-                Text(
-                  'Importance',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                ),
-
-                const SizedBox(height: 8),
-
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(Icons.auto_awesome, size: 18),
+                      Expanded(
+                        child: Text(
+                          appName,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
                       const SizedBox(width: 8),
                       Text(
-                        importance,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                        ),
+                        _formatRelativeTime(notification.timestamp),
+                        style: Theme.of(context)
+                            .textTheme
+                            .labelSmall
+                            ?.copyWith(
+                              color: colors.onSurfaceVariant,
+                            ),
                       ),
                     ],
                   ),
-                ),
 
-                const SizedBox(height: 12),
+                  const SizedBox(height: 7),
 
-                Text(
-                  _importanceExplanation(),
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-
-                const SizedBox(height: 24),
-
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    onPressed: () => _openSourceApp(context),
-                    icon: const Icon(Icons.open_in_new),
-                    label: Text('Open $appName'),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: colors.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      _importanceLabel(),
+                      style: Theme.of(context)
+                          .textTheme
+                          .labelSmall
+                          ?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
 
-  @override
-  Widget build(BuildContext context) {
-    final title = notification.title.isEmpty
-        ? 'No title'
-        : notification.title;
+                  const SizedBox(height: 8),
 
-    final content = notification.content.isEmpty
-        ? 'No content'
-        : notification.content;
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
 
-    return ListTile(
-      onTap: () => _showDetails(context),
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: 16,
-        vertical: 8,
-      ),
-      leading: const CircleAvatar(
-        child: Icon(Icons.notifications),
-      ),
-      title: Row(
-        children: [
-          Expanded(
-            child: Text(
-              notification.appName.isEmpty
-                  ? notification.packageName
-                  : notification.appName,
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
+                  const SizedBox(height: 3),
+
+                  Text(
+                    content,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: colors.onSurfaceVariant,
+                        ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
               ),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            _formatRelativeTime(notification.timestamp),
-            style: Theme.of(context).textTheme.labelSmall,
-          ),
-        ],
-      ),
-      subtitle: Padding(
-        padding: const EdgeInsets.only(top: 4),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 8,
-                vertical: 4,
-              ),
-              decoration: BoxDecoration(
-                color: Theme.of(context)
-                    .colorScheme
-                    .surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                _importanceLabel(),
-                style: Theme.of(context).textTheme.labelSmall,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              title,
-              style: const TextStyle(
-                fontWeight: FontWeight.w500,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 2),
-            Text(
-              content,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
