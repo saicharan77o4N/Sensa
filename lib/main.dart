@@ -1176,6 +1176,47 @@ class _NotificationListItem extends StatelessWidget {
                 ],
               ),
 
+              const SizedBox(height: 18),
+
+              // AI category
+              Text(
+                'AI category',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+
+              const SizedBox(height: 8),
+
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: colors.secondaryContainer,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.category_outlined,
+                      size: 16,
+                      color: colors.onSecondaryContainer,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      notification.category ?? 'Other',
+                      style: TextStyle(
+                        color: colors.onSecondaryContainer,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
               const SizedBox(height: 22),
 
               // Source-app action
@@ -1210,6 +1251,7 @@ class _NotificationListItem extends StatelessWidget {
     final appName = notification.appName.isEmpty
         ? notification.packageName
         : notification.appName;
+        final category = notification.category ?? 'Other';
 
     return InkWell(
       onTap: () => _showDetails(context),
@@ -1286,6 +1328,40 @@ class _NotificationListItem extends StatelessWidget {
                           ?.copyWith(
                             fontWeight: FontWeight.w700,
                           ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 6),
+
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: colors.secondaryContainer,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.category_outlined,
+                          size: 14,
+                          color: colors.onSecondaryContainer,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          category,
+                          style: Theme.of(context)
+                              .textTheme
+                              .labelSmall
+                              ?.copyWith(
+                                color: colors.onSecondaryContainer,
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                      ],
                     ),
                   ),
 
