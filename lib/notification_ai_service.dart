@@ -632,6 +632,45 @@ Future<NotificationQueryResult> answerQuery(
     case NotificationQueryIntent.search:
       final understoodQuery = understandQuery(query);
 
+      // Check whether the user is asking for a specific AI category.
+      final queryLower = query.toLowerCase();
+
+      const categoryNames = [
+        'finance',
+        'security',
+        'work',
+        'education',
+        'social',
+        'shopping',
+        'entertainment',
+      ];
+
+      String? requestedCategory;
+
+      for (final category in categoryNames) {
+        if (queryLower.contains(category)) {
+          requestedCategory =
+              category[0].toUpperCase() + category.substring(1);
+          break;
+        }
+      }
+
+      // Category-aware search.
+      if (requestedCategory != null) {
+        final categoryResults = notifications.where((notification) {
+          return notification.category == requestedCategory;
+        }).toList();
+
+        return NotificationQueryResult(
+          intent: intent,
+          answer: categoryResults.isEmpty
+              ? 'I could not find any $requestedCategory notifications.'
+              : 'I found ${categoryResults.length} $requestedCategory notifications.',
+          notifications: categoryResults,
+        );
+      }
+
+      // Existing semantic search for normal queries.
       final results = await searchNotifications(
         understoodQuery,
         notifications,
