@@ -247,21 +247,20 @@ void initState() {
     }
   }
 
-  Map<String, List<CapturedNotification>> _groupNotificationsByApp(
-  List<CapturedNotification> notifications,
+  Map<String, List<CapturedNotification>> _groupNotificationsByCategory(
+    List<CapturedNotification> notifications,
   ) {
     final groups = <String, List<CapturedNotification>>{};
 
     for (final notification in notifications) {
-      final appName = notification.appName.isEmpty
-          ? notification.packageName
-          : notification.appName;
+      final category = notification.category ?? 'Other';
 
-      groups.putIfAbsent(appName, () => []).add(notification);
+      groups.putIfAbsent(category, () => []).add(notification);
     }
 
     return groups;
   }
+
   Future<void> _startListening() async {
   final available = await _speechToText.initialize(
     onStatus: (status) {
@@ -579,7 +578,7 @@ List<CapturedNotification> get _visibleNotifications {
       : (_visibleNotifications.isEmpty
           ? const _EmptyNotificationList()
           : _GroupedNotificationList(
-              groups: _groupNotificationsByApp(
+              groups: _groupNotificationsByCategory(
                 _visibleNotifications,
               ),
             )),
