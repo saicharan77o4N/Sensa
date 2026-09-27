@@ -877,10 +877,28 @@ class _GroupedNotificationList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final entries = groups.entries.toList();
+    final entries = groups.entries.map((entry) {
+      final notifications = entry.value.toList();
 
-    // The first notification in each group is the newest because
-    // _notifications is already sorted newest → oldest.
+      // Highest AI importance appears first.
+      // If importance is equal, newest notification appears first.
+      notifications.sort((a, b) {
+        final aScore = a.importanceScore ?? -1.0;
+        final bScore = b.importanceScore ?? -1.0;
+
+        final scoreComparison = bScore.compareTo(aScore);
+
+        if (scoreComparison != 0) {
+          return scoreComparison;
+        }
+
+        return b.timestamp.compareTo(a.timestamp);
+      });
+
+      return MapEntry(entry.key, notifications);
+    }).toList();
+
+    // Categories with the newest notification appear first.
     entries.sort(
       (a, b) => b.value.first.timestamp.compareTo(a.value.first.timestamp),
     );
@@ -894,7 +912,9 @@ class _GroupedNotificationList extends StatelessWidget {
             notificationCount: entry.value.length,
           ),
           for (final notification in entry.value)
-            _NotificationListItem(notification: notification),
+            _NotificationListItem(
+              notification: notification,
+            ),
         ],
       ],
     );
