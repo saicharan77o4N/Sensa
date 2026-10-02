@@ -9,6 +9,7 @@ class CapturedNotification {
     required this.timestamp,
     this.importanceScore,
     this.category,
+    this.summary,
   });
 
   final String id;
@@ -20,6 +21,7 @@ class CapturedNotification {
   final DateTime timestamp;
   final double? importanceScore;
   final String? category;
+  final String? summary;
 
   factory CapturedNotification.fromPlatformMap(
     Map<Object?, Object?> values,
@@ -60,6 +62,9 @@ class CapturedNotification {
       category: stringValue('category').isEmpty
           ? null
           : stringValue('category'),
-    );
+      summary: stringValue('summary').isEmpty
+        ? null
+        : stringValue('summary'),
+        );
   }
 }

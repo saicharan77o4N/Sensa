@@ -1,0 +1,54 @@
+{
+  "model": "qwen3:1.7b",
+  "created_at": "2026-09-30T15:01:10.942190",
+  "results": [
+    {
+      "id": 1,
+      "input": "Please send me the database schema before lunch.",
+      "facts": "\nRECIPIENT ACTION:\n- Send the database schema before lunch.\n\nSENDER ACTION:\n- None.\n\nSHARED ACTION:\n- None.\n",
+      "summary": "The recipient must send the database schema before lunch."
+    },
+    {
+      "id": 2,
+      "input": "Can you send me the database schema before lunch?",
+      "facts": "\nRECIPIENT ACTION:\n- Send the database schema before lunch.\n\nSENDER ACTION:\n- None.\n\nSHARED ACTION:\n- None.\n\nQUESTION:\n- The sender asks whether the recipient can send the database schema before lunch.\n",
+      "summary": "The sender asks if the recipient can send the database schema before lunch."
+    },
+    {
+      "id": 3,
+      "input": "Can you send me the report? I'll review it after lunch.",
+      "facts": "\nRECIPIENT ACTION:\n- Send the report to the sender.\n\nSENDER ACTION:\n- Review the report after lunch.\n\nSHARED ACTION:\n- None.\n\nQUESTION:\n- The sender asks whether the recipient can send the report.\n",
+      "summary": "The sender asks whether the recipient can send the report. The recipient will send the report to the sender. The sender will review the report after lunch."
+    },
+    {
+      "id": 4,
+      "input": "We should include the bug statistics, but I'll prepare the final presentation.",
+      "facts": "\nRECIPIENT ACTION:\n- None.\n\nSENDER ACTION:\n- Prepare the final presentation.\n\nSHARED ACTION:\n- Include the bug statistics.\n\nOTHER PEOPLE:\n- None.\n",
+      "summary": "The sender will prepare the final presentation, including the bug statistics."
+    },
+    {
+      "id": 5,
+      "input": "Let's send the report to Priya after we review it.",
+      "facts": "\nRECIPIENT ACTION:\n- None.\n\nSENDER ACTION:\n- None.\n\nSHARED ACTION:\n- Review the report.\n- Send the report to Priya after reviewing it.\n\nOTHER PEOPLE:\n- Priya receives the report.\n",
+      "summary": "Review the report and send it to Priya after reviewing it."
+    },
+    {
+      "id": 6,
+      "input": "You finish the API documentation and I'll prepare the frontend deck.",
+      "facts": "\nRECIPIENT ACTION:\n- Finish the API documentation.\n\nSENDER ACTION:\n- Prepare the frontend deck.\n\nSHARED ACTION:\n- None.\n",
+      "summary": "Sender prepares frontend deck; Recipient finishes API documentation."
+    },
+    {
+      "id": 7,
+      "input": "Priya will prepare the testing report and Rahul will handle the database migration.",
+      "facts": "\nRECIPIENT ACTION:\n- None.\n\nSENDER ACTION:\n- None.\n\nSHARED ACTION:\n- None.\n\nOTHER PEOPLE:\n- Priya will prepare the testing report.\n- Rahul will handle the database migration.\n",
+      "summary": "Priya will prepare the testing report and Rahul will handle the database migration."
+    },
+    {
+      "id": 8,
+      "input": "I'll send you the report and you can review it.",
+      "facts": "\nRECIPIENT ACTION:\n- Review the report.\n\nSENDER ACTION:\n- Send the report to the recipient.\n\nSHARED ACTION:\n- None.\n",
+      "summary": "The sender will send the report to the recipient, who can review it."
+    }
+  ]
+}

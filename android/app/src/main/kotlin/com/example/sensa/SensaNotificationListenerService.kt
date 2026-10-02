@@ -55,6 +55,13 @@ class SensaNotificationListenerService : NotificationListenerService() {
         if (isDuplicate(capturedNotification)) {
             return
         }
+        debugLog(
+            "Dispatching notification: " +
+                "${capturedNotification["notificationKey"]} | " +
+                "${capturedNotification["title"]} | " +
+                "${capturedNotification["content"]}",
+        )
+
 
         NotificationEventDispatcher.dispatch(capturedNotification)
     }

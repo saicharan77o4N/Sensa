@@ -1,0 +1,186 @@
+{
+  "model": "qwen3:1.7b",
+  "created_at": "2026-09-30T12:29:03.891330",
+  "results": [
+    {
+      "id": "01",
+      "category": "recipient_request",
+      "input": "Please send me the database schema before lunch.",
+      "summary": "Send the database schema before lunch."
+    },
+    {
+      "id": "02",
+      "category": "recipient_request",
+      "input": "Can you send me the database schema before lunch?",
+      "summary": "Send the database schema before lunch."
+    },
+    {
+      "id": "03",
+      "category": "recipient_request",
+      "input": "You need to send me the database schema before lunch.",
+      "summary": "You need to send me the database schema before lunch."
+    },
+    {
+      "id": "04",
+      "category": "recipient_action",
+      "input": "You can upload the presentation to Drive tonight.",
+      "summary": "You can upload the presentation to Drive tonight."
+    },
+    {
+      "id": "05",
+      "category": "sender_action",
+      "input": "I'll upload the presentation to Drive tonight.",
+      "summary": "I will upload the presentation to Drive tonight."
+    },
+    {
+      "id": "06",
+      "category": "sender_action",
+      "input": "I will upload the presentation to Drive tonight.",
+      "summary": "I will upload the presentation to Drive tonight."
+    },
+    {
+      "id": "07",
+      "category": "sender_action",
+      "input": "I'm going to upload the presentation to Drive tonight.",
+      "summary": "I will upload the presentation to Drive tonight."
+    },
+    {
+      "id": "08",
+      "category": "shared_action",
+      "input": "Let's review the code together after class.",
+      "summary": "Let's review the code together after class."
+    },
+    {
+      "id": "09",
+      "category": "shared_action",
+      "input": "We should review the code together after class.",
+      "summary": "We should review the code together after class."
+    },
+    {
+      "id": "10",
+      "category": "shared_action",
+      "input": "We need to finish the testing before Friday.",
+      "summary": "We need to finish the testing before Friday."
+    },
+    {
+      "id": "11",
+      "category": "multiple_roles",
+      "input": "You finish the API documentation and I'll prepare the frontend deck.",
+      "summary": "You finish the API documentation and I'll prepare the frontend deck."
+    },
+    {
+      "id": "12",
+      "category": "multiple_roles",
+      "input": "Can you finish the API documentation? I'll handle the frontend deck.",
+      "summary": "Finish the API documentation. I'll handle the frontend deck."
+    },
+    {
+      "id": "13",
+      "category": "multiple_roles",
+      "input": "You handle the backend and I'll handle the frontend.",
+      "summary": "You handle the backend and I'll handle the frontend."
+    },
+    {
+      "id": "14",
+      "category": "named_person",
+      "input": "Priya will prepare the testing report.",
+      "summary": "Priya will prepare the testing report."
+    },
+    {
+      "id": "15",
+      "category": "named_people",
+      "input": "Priya will prepare the testing report and Rahul will handle the database migration.",
+      "summary": "Priya will prepare the testing report and Rahul will handle the database migration."
+    },
+    {
+      "id": "16",
+      "category": "named_people",
+      "input": "Ask Rahul to review the database changes.",
+      "summary": "Ask Rahul to review the database changes."
+    },
+    {
+      "id": "17",
+      "category": "named_person",
+      "input": "Priya asked me to review the testing report.",
+      "summary": "Priya asked me to review the testing report."
+    },
+    {
+      "id": "18",
+      "category": "named_person",
+      "input": "Priya asked you to review the testing report.",
+      "summary": "Priya requested that you review the testing report."
+    },
+    {
+      "id": "19",
+      "category": "shared_request",
+      "input": "Let's send the report to Priya after we review it.",
+      "summary": "Send the report to Priya after reviewing it."
+    },
+    {
+      "id": "20",
+      "category": "sender_recipient",
+      "input": "I'll send you the report and you can review it.",
+      "summary": "I will send you the report and you can review it."
+    },
+    {
+      "id": "21",
+      "category": "sender_recipient",
+      "input": "Can you send me the report? I'll review it after lunch.",
+      "summary": "I can send you the report, and you'll review it after lunch."
+    },
+    {
+      "id": "22",
+      "category": "shared",
+      "input": "We can finish this together tomorrow.",
+      "summary": "We can finish this together tomorrow."
+    },
+    {
+      "id": "23",
+      "category": "recipient",
+      "input": "You can finish this tomorrow.",
+      "summary": "You can finish this tomorrow."
+    },
+    {
+      "id": "24",
+      "category": "sender",
+      "input": "I can finish this tomorrow.",
+      "summary": "I can finish this tomorrow."
+    },
+    {
+      "id": "25",
+      "category": "mixed",
+      "input": "Did you finish the report? If not, please send it to me and I'll review it.",
+      "summary": "Did you finish the report? If not, please send it to me and I'll review it."
+    },
+    {
+      "id": "26",
+      "category": "shared_vs_individual",
+      "input": "We should include the bug statistics, but I'll prepare the final presentation.",
+      "summary": "The sender will prepare the final presentation, including the bug statistics as requested."
+    },
+    {
+      "id": "27",
+      "category": "other_person",
+      "input": "Mom asked us to reach Grandma's house by 12:30.",
+      "summary": "Mom asked us to reach Grandma's house by 12:30."
+    },
+    {
+      "id": "28",
+      "category": "other_person",
+      "input": "Rahul said you should send the report before 5 PM.",
+      "summary": "Rahul said you should send the report before 5 PM."
+    },
+    {
+      "id": "29",
+      "category": "other_person",
+      "input": "Priya said she'll send you the updated file.",
+      "summary": "Priya will send you the updated file."
+    },
+    {
+      "id": "30",
+      "category": "other_person",
+      "input": "Rahul will send me the database backup tomorrow.",
+      "summary": "Rahul will send the database backup to me tomorrow."
+    }
+  ]
+}

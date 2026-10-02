@@ -1,0 +1,126 @@
+{
+  "model": "qwen3:1.7b",
+  "created_at": "2026-09-30T12:23:15.282770",
+  "results": [
+    {
+      "id": 1,
+      "category": "simple",
+      "input": "Your package will arrive tomorrow between 2 PM and 5 PM.",
+      "summary": "Your package will arrive tomorrow between 2 PM and 5 PM."
+    },
+    {
+      "id": 2,
+      "category": "question",
+      "input": "Are you coming to the project meeting at 4 PM?",
+      "summary": "Are you coming to the project meeting at 4 PM?"
+    },
+    {
+      "id": 3,
+      "category": "recipient_request",
+      "input": "Please send me the database schema before lunch.",
+      "summary": "I will send you the database schema before lunch."
+    },
+    {
+      "id": 4,
+      "category": "sender_action",
+      "input": "I'll upload the presentation to Drive tonight.",
+      "summary": "I will upload the presentation to Drive tonight."
+    },
+    {
+      "id": 5,
+      "category": "shared_action",
+      "input": "Let's review the code together after the class.",
+      "summary": "Let's review the code together after the class."
+    },
+    {
+      "id": 6,
+      "category": "multiple_roles",
+      "input": "Can you finish the API documentation by tomorrow? I'll handle the frontend deck and we can sync at 4 PM.",
+      "summary": "Please finish the API documentation by tomorrow. I'll handle the frontend deck and sync at 4 PM."
+    },
+    {
+      "id": 7,
+      "category": "deadline",
+      "input": "The assignment submission deadline has been extended to Friday at 11:59 PM.",
+      "summary": "The assignment submission deadline has been extended to Friday at 11:59 PM."
+    },
+    {
+      "id": 8,
+      "category": "multiple_facts",
+      "input": "The client demo is Friday at 3 PM. We need to finish testing before then, and I'll prepare the demo slides.",
+      "summary": "The client demo will take place on Friday at 3 PM. We must complete testing prior to this time, and I will prepare the demo slides."
+    },
+    {
+      "id": 9,
+      "category": "number",
+      "input": "The team has completed 87% of the migration, with 13 services still remaining.",
+      "summary": "The team has completed 87% of the migration, with 13 services remaining."
+    },
+    {
+      "id": 10,
+      "category": "money",
+      "input": "Your UPI payment of ₹1,250 to ABC Store was successful.",
+      "summary": "Your UPI payment of ₹1,250 to ABC Store was successful."
+    },
+    {
+      "id": 11,
+      "category": "security",
+      "input": "Your OTP for signing in is 482913. It expires in 10 minutes.",
+      "summary": "Your OTP for signing in is 482913 and will expire in 10 minutes."
+    },
+    {
+      "id": 12,
+      "category": "delivery",
+      "input": "Your order #4821 has been shipped and will arrive on Monday.",
+      "summary": "Your order #4821 has been shipped and will arrive on Monday."
+    },
+    {
+      "id": 13,
+      "category": "casual",
+      "input": "Hey, are you free later? I was thinking we could grab something to eat after class.",
+      "summary": "Hey, are you free later? I was thinking we could grab something to eat after class."
+    },
+    {
+      "id": 14,
+      "category": "long_work",
+      "input": "The backend deployment was delayed because the database migration failed during testing. We fixed the issue this morning and the deployment can now continue. The client demo is still scheduled for Friday, so please finish the API testing before Thursday. I'll prepare the deployment notes and we can review everything together at 5 PM.",
+      "summary": "The backend deployment was delayed due to a database migration failure during testing. The issue was resolved this morning, allowing the deployment to proceed. The client demo is scheduled for Friday, so API testing must be completed by Thursday. Sensa will prepare deployment notes, and they will review everything together at 5 PM."
+    },
+    {
+      "id": 15,
+      "category": "multiple_people",
+      "input": "Priya will prepare the testing report, Rahul is handling the database migration, and I'll review the final results tomorrow.",
+      "summary": "Priya will prepare the testing report, Rahul will handle the database migration, and I will review the final results tomorrow."
+    },
+    {
+      "id": 16,
+      "category": "url",
+      "input": "The meeting has been moved to 2 PM. Please join using https://meet.google.com/example and review the updated agenda before joining.",
+      "summary": "The meeting has been rescheduled to 2 PM. Please join via https://meet.google.com/example and review the updated agenda prior to attending."
+    },
+    {
+      "id": 17,
+      "category": "college",
+      "input": "The Data Science lab scheduled for tomorrow has been moved to Room 204. Bring your laptop and submit Experiment 5 before the lab starts.",
+      "summary": "The Data Science lab will take place in Room 204 tomorrow. Please bring your laptop and submit Experiment 5 before the lab starts."
+    },
+    {
+      "id": 18,
+      "category": "social",
+      "input": "Mom said everyone is meeting at Grandma's house on Sunday for lunch. She asked us to reach by 12:30.",
+      "summary": "Mom mentioned that everyone will meet at Grandma's house on Sunday for lunch and asked us to arrive by 12:30 PM."
+    },
+    {
+      "id": 19,
+      "category": "mixed_request_question",
+      "input": "Did you finish the report? If not, please send me the draft before 6 PM so I can review it.",
+      "summary": "Did you finish the report? If not, please send me the draft before 6 PM so I can review it."
+    },
+    {
+      "id": 20,
+      "category": "context_dependent",
+      "input": "I'll send it before the meeting. Don't forget to bring the one from yesterday.",
+      "summary": "I will send it before the meeting. Please bring the one from yesterday."
+    }
+  ]
+}

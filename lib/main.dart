@@ -6,6 +6,7 @@ import 'captured_notification.dart';
 import 'notification_ai_service.dart';
 import 'notification_capture_service.dart';
 import 'notification_database.dart';
+import 'generative_ai_service.dart';
 
 void main() {
   runApp(const SensaApp());
@@ -39,7 +40,11 @@ class _NotificationInboxPageState extends State<NotificationInboxPage>
   final _captureService = NotificationCaptureService();
   final _database = NotificationDatabase.instance;
   final List<CapturedNotification> _notifications = [];
+  final Set<String> _processingNotificationIds = {};
+  final Map<String, DateTime> _recentNotificationPayloads = {};
+  final Map<String, CapturedNotification> _pendingNotifications = {};
   final TextEditingController _searchController = TextEditingController();
+
 
   bool _isSearching = false;
   String? _queryAnswer;
@@ -140,25 +145,237 @@ void initState() {
       }
     }
   }
+  bool _isRecentPayloadDuplicate(
+    CapturedNotification notification,
+  ) {
+    final normalizedTitle = notification.title
+        .trim()
+        .toLowerCase()
+        .replaceAll(RegExp(r'\s+'), ' ');
 
+    final normalizedContent = notification.content
+        .trim()
+        .toLowerCase()
+        .replaceAll(RegExp(r'\s+'), ' ');
+
+    final fingerprint = [
+      notification.packageName,
+      normalizedTitle,
+      normalizedContent,
+    ].join('|');
+
+    final now = DateTime.now();
+    final previousTime = _recentNotificationPayloads[fingerprint];
+
+    _recentNotificationPayloads[fingerprint] = now;
+
+    _recentNotificationPayloads.removeWhere(
+      (_, timestamp) =>
+          now.difference(timestamp) > const Duration(seconds: 2),
+    );
+
+    return previousTime != null &&
+        now.difference(previousTime) <= const Duration(seconds: 2);
+  }
   Future<void> _addNotification(CapturedNotification notification) async {
+    final notificationText =
+        '${notification.title} ${notification.content}'.trim();
+    if (_isRecentPayloadDuplicate(notification)) {
+      debugPrint(
+        'SENSA IGNORE | Recent duplicate payload: '
+        '${notification.appName} - '
+        '${notification.title}',
+      );
+      return;
+    }
+    // Ignore known WhatsApp background/status notifications.
+    if (notification.packageName == 'com.whatsapp' &&
+        notification.title.trim() == 'WhatsApp' &&
+        notification.content.trim() == 'Checking for new messages') {
+      debugPrint(
+        'SENSA IGNORE | WhatsApp background status: '
+        '${notification.content}',
+      );
+      return;
+    }
+    // Ignore completely empty Android aggregate notifications.
+    if (notificationText.isEmpty) {
+      debugPrint(
+        'SENSA IGNORE | Empty notification',
+      );
+      return;
+    }
+
+    // Ignore WhatsApp-style aggregate updates such as "2 new messages".
+    final contentLower = notification.content.trim().toLowerCase();
+
+    if (RegExp(r'^\d+\s+new messages?$').hasMatch(contentLower)) {
+      debugPrint(
+        'SENSA IGNORE | Aggregate message update: '
+        '${notification.content}',
+      );
+      return;
+    }
+
+    // Keep only the latest update while this notification is being processed.
+    _pendingNotifications[notification.id] = notification;
+
+    // If this notification is already being processed, the current event
+    // will be picked up after the current processing finishes.
+    if (_processingNotificationIds.contains(notification.id)) {
+      debugPrint(
+        'SENSA QUEUE | Updated pending notification: '
+        '${notification.appName} - '
+        '${notification.title}',
+      );
+      return;
+    }
+
+    _processingNotificationIds.add(notification.id);
+
+    try {
+      while (true) {
+        final currentNotification =
+            _pendingNotifications.remove(notification.id);
+
+        if (currentNotification == null) {
+          break;
+        }
+
+        await _processNotification(currentNotification);
+      }
+    } finally {
+      _processingNotificationIds.remove(notification.id);
+    }
+  }
+  
+  Future<void> _processNotification(
+    CapturedNotification notification,
+  ) async {
     try {
       final notificationText =
           '${notification.title} ${notification.content}'.trim();
+
+      debugPrint(
+        'SENSA PROCESS | Input: "$notificationText"',
+      );
+
+      final existingIndex = _notifications.indexWhere(
+        (item) => item.id == notification.id,
+      );
+
+      if (existingIndex >= 0) {
+        final existingNotification = _notifications[existingIndex];
+
+        final isWhatsApp =
+            notification.packageName == 'com.whatsapp';
+
+        // WhatsApp can reuse the same Android notification ID for
+        // different incoming messages. Each real message should therefore
+        // receive fresh AI analysis.
+        if (isWhatsApp) {
+          debugPrint(
+            'SENSA AI | New WhatsApp message - analyzing separately',
+          );
+        } else {
+          // For other apps, preserve the existing update behavior.
+          final shouldReanalyze =
+              _shouldReanalyzeUpdate(notification);
+
+          if (!shouldReanalyze) {
+            final updatedNotification = CapturedNotification(
+              id: existingNotification.id,
+              notificationKey: notification.notificationKey,
+              packageName: notification.packageName,
+              appName: notification.appName,
+              title: notification.title,
+              content: notification.content,
+              timestamp: notification.timestamp,
+              importanceScore: existingNotification.importanceScore,
+              category: existingNotification.category,
+              summary: existingNotification.summary,
+            );
+
+            await _database.insertNotification(updatedNotification);
+
+            if (!mounted) {
+              return;
+            }
+
+            setState(() {
+              _notifications[existingIndex] = updatedNotification;
+              _notifications.sort(
+                (a, b) => b.timestamp.compareTo(a.timestamp),
+              );
+              _captureError = null;
+            });
+
+            debugPrint(
+              'SENSA UPDATE | '
+              '${updatedNotification.appName} - '
+              '${updatedNotification.title}',
+            );
+
+            return;
+          }
+
+          debugPrint(
+            'SENSA AI | Reanalyzing final notification state',
+          );
+        }
+      }
+
+      if (_shouldWaitForFinalState(notification)) {
+        debugPrint(
+          'SENSA WAIT | Waiting for final notification state: '
+          '${notification.appName} - '
+          '${notification.title}',
+        );
+
+        return;
+      }
 
       final aiService = NotificationAiService.instance;
 
       final analysis =
           await aiService.analyzeNotification(notificationText);
 
-      final importanceScore =
+      var importanceScore =
           analysis['importanceScore'] as double;
 
       final category =
           analysis['category'] as String;
 
+      if (!importanceScore.isFinite) {
+        importanceScore = 0.0;
+
+        debugPrint(
+          'SENSA AI | Invalid importance score replaced with 0.0',
+        );
+      }
+
+      String? summary;
+
+      try {
+        summary = await GenerativeAiService.instance
+            .summarizeNotification(
+          title: notification.title,
+          content: notification.content,
+        );
+
+        debugPrint(
+          'SENSA GEN AI | Summary: $summary',
+        );
+      } catch (error) {
+        debugPrint(
+          'SENSA GEN AI | Summary failed: $error',
+        );
+      }
+
       final scoredNotification = CapturedNotification(
-        id: notification.id,
+        id: notification.packageName == 'com.whatsapp'
+          ? '${notification.id}_${notification.timestamp}_${DateTime.now().microsecondsSinceEpoch}'
+          : notification.id,
         notificationKey: notification.notificationKey,
         packageName: notification.packageName,
         appName: notification.appName,
@@ -167,33 +384,12 @@ void initState() {
         timestamp: notification.timestamp,
         importanceScore: importanceScore,
         category: category,
+        summary: summary,
       );
 
       await _database.insertNotification(scoredNotification);
 
       if (!mounted) {
-        return;
-      }
-
-      final existingIndex = _notifications.indexWhere(
-        (item) => item.id == scoredNotification.id,
-      );
-
-      if (existingIndex >= 0) {
-        setState(() {
-          _notifications[existingIndex] = scoredNotification;
-          _notifications.sort(
-            (a, b) => b.timestamp.compareTo(a.timestamp),
-          );
-          _captureError = null;
-        });
-
-        debugPrint(
-          'SENSA UPDATE | '
-          '${scoredNotification.appName} - '
-          '${scoredNotification.title}',
-        );
-
         return;
       }
 
@@ -204,23 +400,19 @@ void initState() {
           '${scoredNotification.appName} - '
           '${scoredNotification.title}',
         );
-
-        setState(() {
-          _notifications.add(scoredNotification);
-          _notifications.sort(
-            (a, b) => b.timestamp.compareTo(a.timestamp),
-          );
-          _captureError = null;
-        });
-
-        return;
       }
 
       setState(() {
-        _notifications.add(scoredNotification);
+        if (existingIndex >= 0) {
+          _notifications[existingIndex] = scoredNotification;
+        } else {
+          _notifications.add(scoredNotification);
+        }
+
         _notifications.sort(
           (a, b) => b.timestamp.compareTo(a.timestamp),
         );
+
         _captureError = null;
       });
 
@@ -235,16 +427,64 @@ void initState() {
         '${scoredNotification.category} | '
         '${scoredNotification.title}',
       );
+
+      debugPrint(
+        'SENSA SUMMARY | '
+        '${scoredNotification.summary} | '
+        '${scoredNotification.title}',
+      );
     } catch (error, stackTrace) {
-      debugPrint('Notification AI scoring failed: $error');
+      debugPrint(
+        'Notification AI scoring failed: $error',
+      );
       debugPrint('$stackTrace');
 
       if (mounted) {
         setState(() {
-          _captureError = 'Unable to process notification: $error';
+          _captureError =
+              'Unable to process notification: $error';
         });
       }
     }
+  }
+
+  bool _shouldReanalyzeUpdate(
+    CapturedNotification notification,
+  ) {
+    final text =
+        '${notification.title} ${notification.content}'.toLowerCase();
+
+    const finalIndicators = [
+      'download complete',
+      'downloaded',
+      'download completed',
+      'completed',
+      'complete',
+      'successfully',
+      'successful',
+      'delivered',
+      'finished',
+    ];
+
+    return finalIndicators.any(text.contains);
+  }
+
+  bool _shouldWaitForFinalState(
+    CapturedNotification notification,
+  ) {
+    final text =
+        '${notification.title} ${notification.content}'.toLowerCase();
+
+    final isChrome =
+        notification.packageName == 'com.android.chrome';
+
+    final looksLikeDownloadProgress =
+        text.contains('kb /') ||
+        text.contains('mb /') ||
+        text.contains('gb /') ||
+        text.contains('waiting for network');
+
+    return isChrome && looksLikeDownloadProgress;
   }
 
   Map<String, List<CapturedNotification>> _groupNotificationsByCategory(
