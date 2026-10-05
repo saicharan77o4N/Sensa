@@ -356,22 +356,31 @@ void initState() {
 
       String? summary;
 
-      try {
-        summary = await GenerativeAiService.instance
-            .summarizeNotification(
-          title: notification.title,
-          content: notification.content,
-        );
+      final shouldGenerateSummary =
+          notification.packageName == 'com.whatsapp';
 
+      if (shouldGenerateSummary) {
+        try {
+          summary = await GenerativeAiService.instance
+              .summarizeNotification(
+            title: notification.title,
+            content: notification.content,
+          );
+
+          debugPrint(
+            'SENSA GEN AI | Summary: $summary',
+          );
+        } catch (error) {
+          debugPrint(
+            'SENSA GEN AI | Summary failed: $error',
+          );
+        }
+      } else {
         debugPrint(
-          'SENSA GEN AI | Summary: $summary',
-        );
-      } catch (error) {
-        debugPrint(
-          'SENSA GEN AI | Summary failed: $error',
+          'SENSA GEN AI | Skipping summary for '
+          '${notification.appName}',
         );
       }
-
       final scoredNotification = CapturedNotification(
         id: notification.packageName == 'com.whatsapp'
           ? '${notification.id}_${notification.timestamp}_${DateTime.now().microsecondsSinceEpoch}'
@@ -1117,83 +1126,28 @@ class _GroupedNotificationList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final entries = groups.entries.map((entry) {
-      final notifications = entry.value.toList();
+    final notifications = groups.values
+        .expand((items) => items)
+        .toList();
 
-      // Highest AI importance appears first.
-      // If importance is equal, newest notification appears first.
-      notifications.sort((a, b) {
-        final aScore = a.importanceScore ?? -1.0;
-        final bScore = b.importanceScore ?? -1.0;
-
-        final scoreComparison = bScore.compareTo(aScore);
-
-        if (scoreComparison != 0) {
-          return scoreComparison;
-        }
-
-        return b.timestamp.compareTo(a.timestamp);
-      });
-
-      return MapEntry(entry.key, notifications);
-    }).toList();
-
-    // Categories with the newest notification appear first.
-    entries.sort(
-      (a, b) => b.value.first.timestamp.compareTo(a.value.first.timestamp),
+    // Default Sensa inbox:
+    // newest notifications first.
+    notifications.sort(
+      (a, b) => b.timestamp.compareTo(a.timestamp),
     );
 
     return ListView(
       padding: const EdgeInsets.only(bottom: 16),
       children: [
-        for (final entry in entries) ...[
-          _AppSectionHeader(
-            appName: entry.key,
-            notificationCount: entry.value.length,
+        for (final notification in notifications)
+          _NotificationListItem(
+            notification: notification,
           ),
-          for (final notification in entry.value)
-            _NotificationListItem(
-              notification: notification,
-            ),
-        ],
       ],
     );
   }
 }
 
-class _AppSectionHeader extends StatelessWidget {
-  const _AppSectionHeader({
-    required this.appName,
-    required this.notificationCount,
-  });
-
-  final String appName;
-  final int notificationCount;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 18, 16, 8),
-      child: Row(
-        children: [
-          const Icon(Icons.apps, size: 18),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              appName,
-              style: Theme.of(context).textTheme.titleSmall
-                  ?.copyWith(fontWeight: FontWeight.bold),
-            ),
-          ),
-          Text(
-            '$notificationCount',
-            style: Theme.of(context).textTheme.labelMedium,
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 class _NotificationListItem extends StatelessWidget {
   _NotificationListItem({required this.notification});
@@ -1447,34 +1401,6 @@ class _NotificationListItem extends StatelessWidget {
 
               const SizedBox(height: 8),
 
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: colors.secondaryContainer,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.category_outlined,
-                      size: 16,
-                      color: colors.onSecondaryContainer,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      notification.category ?? 'Other',
-                      style: TextStyle(
-                        color: colors.onSecondaryContainer,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
 
               const SizedBox(height: 22),
 
@@ -1503,14 +1429,15 @@ class _NotificationListItem extends StatelessWidget {
         ? 'No title'
         : notification.title;
 
-    final content = notification.content.isEmpty
+    final content = notification.summary?.trim().isNotEmpty == true
+    ? notification.summary!.trim()
+    : (notification.content.isEmpty
         ? 'No content'
-        : notification.content;
+        : notification.content);
 
     final appName = notification.appName.isEmpty
         ? notification.packageName
         : notification.appName;
-        final category = notification.category ?? 'Other';
 
     return InkWell(
       onTap: () => _showDetails(context),
@@ -1566,62 +1493,6 @@ class _NotificationListItem extends StatelessWidget {
                             ),
                       ),
                     ],
-                  ),
-
-                  const SizedBox(height: 7),
-
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: colors.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      _importanceLabel(),
-                      style: Theme.of(context)
-                          .textTheme
-                          .labelSmall
-                          ?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 6),
-
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: colors.secondaryContainer,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.category_outlined,
-                          size: 14,
-                          color: colors.onSecondaryContainer,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          category,
-                          style: Theme.of(context)
-                              .textTheme
-                              .labelSmall
-                              ?.copyWith(
-                                color: colors.onSecondaryContainer,
-                                fontWeight: FontWeight.w700,
-                              ),
-                        ),
-                      ],
-                    ),
                   ),
 
                   const SizedBox(height: 8),

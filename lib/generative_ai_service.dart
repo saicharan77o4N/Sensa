@@ -599,6 +599,7 @@ $content
       }
 
       // Shared responsibility must be checked first.
+      // Shared responsibility must be checked first.
       if (_containsAny(lower, [
         'we ',
         'we\'ll',
@@ -607,8 +608,6 @@ $content
         'we can',
         'let\'s',
         'lets ',
-        'our ',
-        'us ',
       ])) {
         sharedActions.add(trimmed);
         continue;
@@ -850,6 +849,10 @@ $content
         'i\'ll ',
         'i will ',
         'i need to ',
+        'i checked',
+        'i noticed',
+        'i saw',
+        'i found',
         'we should ',
         'we can ',
         'let\'s ',
@@ -858,6 +861,7 @@ $content
       final containsImportantFact =
           _extractTimes(sentence).isNotEmpty ||
           _extractDates(sentence).isNotEmpty ||
+          _extractNumbers(sentence).isNotEmpty ||
           sentence.contains('?');
 
       if (isAction || containsImportantFact) {
