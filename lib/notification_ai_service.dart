@@ -634,6 +634,18 @@ Future<NotificationQueryResult> answerQuery(
 
       // Check whether the user is asking for a specific AI category.
       final queryLower = query.toLowerCase();
+      // App-aware search.
+      final appResults = notifications.where((notification) {
+        return notification.appName.toLowerCase() == queryLower.trim();
+      }).toList();
+
+      if (appResults.isNotEmpty) {
+        return NotificationQueryResult(
+          intent: intent,
+          answer: 'I found ${appResults.length} notifications from $query.',
+          notifications: appResults,
+        );
+      }
 
       const categoryNames = [
         'finance',
